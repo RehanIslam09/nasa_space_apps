@@ -89,3 +89,17 @@
 - **Context**: Application failures must fail gracefully without exposing sensitive credentials, stack traces, or breaking accessibility.
 - **Decision**: Implement a two-tiered error boundary architecture: `global-error.tsx` (with full `<html>`/`<body>` fallback) for critical app failures, and `error.tsx` for nested route segment recoveries. Provide accessible `loading.tsx` status indicators with ARIA live regions.
 - **Consequences**: High fault tolerance, WCAG accessibility compliance, sanitized error presentations, and seamless retry/reload triggers.
+
+---
+
+## ADR 011: Strict Modular Frontend/Backend Separation & Parallel Development Architecture
+
+- **Status**: Accepted
+- **Context**: The project must support parallel development by two independent developers (Frontend Developer and Backend Developer) working on separate Git branches and PRs, synchronizing during explicit integration phases. Neither developer may be blocked by the other, and neither may modify the other's implementation files.
+- **Decision**: Adopt a Clean Modular Monorepo within the existing Next.js 15 App Router:
+  1. **Frontend Boundary**: Owns UI components, pages, layouts, GSAP, 3D R3F scenes, Zustand stores, and client domain services with complete mock support (`src/services/api/`). Prohibited from importing Drizzle, database clients, or `@/server/*`.
+  2. **Backend Boundary**: Owns Route Handlers (`src/app/api/`), server business logic (`src/server/services/`), repositories, and Drizzle schemas (`src/lib/db/`). Prohibited from importing UI components, client hooks, or GSAP.
+  3. **Shared Contract (`src/contracts/`)**: Authoritative, immutable Zod schemas and TypeScript types governing all request/response communication. Changes require an approved RFC.
+  4. **Dual-Mode API Client**: Frontend can operate in 100% Mock Mode (`NEXT_PUBLIC_API_MOCK=true`) without database or running backend.
+  5. **Automated ESLint Enforcement**: Compile-time import rules in `.eslintrc.json` via `no-restricted-imports` that fail CI on cross-boundary violations.
+- **Consequences**: Enables zero-friction concurrent development, clean Git PR reviews, zero cross-boundary pollution, reliable mock-driven UI testing, and predictable integration on dedicated `integration/*` branches.

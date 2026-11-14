@@ -1,16 +1,28 @@
-# Dependencies
-/node_modules
-/.pnp
+# ==============================================================================
+# NASA Space Apps — Monorepo Root .gitignore
+# Covers: Root, frontend/, backend/, and packages/contracts/
+# ==============================================================================
+
+# Dependencies across all workspaces
+node_modules/
+**/node_modules/
+.pnp
 .pnp.js
+**/.pnp
+**/.pnp.js
 .yarn/install-state.gz
 
-# Next.js build output
-/.next/
-/out/
+# Next.js build outputs
+.next/
+**/.next/
+out/
+**/out/
 
-# Production build artifacts
-/build
-/dist
+# Production & TypeScript build artifacts
+build/
+**/build/
+dist/
+**/dist/
 
 # Environment variables & secrets (CRITICAL: NEVER COMMIT SECRETS)
 .env
@@ -18,11 +30,34 @@
 .env.development.local
 .env.test.local
 .env.production.local
+**/.env
+**/.env*.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+!.env.example
+!**/.env.example
 
-# Supabase generated types or temporary artifacts
-.supabase
+# Supabase CLI local runtime state & temporary data
+.supabase/
+**/.supabase/
+!.supabase/config/
+!**/.supabase/config/
+
+# Drizzle local cache & studio artifacts
+.drizzle/
+**/.drizzle/
+drizzle-studio.log*
+
+# Testing & Coverage
+coverage/
+**/coverage/
+.vitest/
+**/.vitest/
 
 # Debug logs
+*.log
+**/*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -31,18 +66,26 @@ lerna-debug.log*
 
 # OS and Editor metadata
 .DS_Store
+**/.DS_Store
 Thumbs.db
+**/Thumbs.db
 *.pem
 .idea/
+**/.idea/
 .vscode/*
+**/..vscode/*
 !.vscode/settings.json
+!**/.vscode/settings.json
 !.vscode/extensions.json
+!**/.vscode/extensions.json
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# TypeScript build info
+# TypeScript build info & Next.js generated types
 *.tsbuildinfo
+**/*.tsbuildinfo
 next-env.d.ts
+**/next-env.d.ts

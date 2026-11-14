@@ -1,93 +1,58 @@
 # NASA Space Apps — Experience Platform
 
-> Production-ready engineering foundation built for the NASA Space Apps Hackathon.
+Cinematic, interactive space exploration platform built for the NASA Space Apps Hackathon.
 
 ---
 
-## Architecture Overview
+## 1. Physical Monorepo Architecture
 
-This platform uses a strictly decoupled three-layer architecture:
+The platform is structured into three independent workspaces:
 
-1. **Presentation Layer**: Next.js 15 App Router, React 19, Tailwind CSS 4, GSAP 3 with ScrollTrigger, Lenis smooth scrolling, and Three.js with React Three Fiber v9.
-2. **Application Services Layer**: Next.js Route Handlers, TanStack Query v5, Zustand v5, Zod runtime validation, and Supabase SSR authentication middleware.
-3. **Data Infrastructure Layer**: Supabase PostgreSQL, Drizzle ORM, postgres-js with connection pooler support.
+- **`frontend/`** (Developer A): Next.js 15 App Router, React 19, Tailwind CSS 4, GSAP, Three.js, React Three Fiber, Lenis, and TanStack Query.
+- **`backend/`** (Developer B): Supabase PostgreSQL schemas, Drizzle ORM, database migrations, repositories, and backend domain services.
+- **`packages/contracts/`** (Shared): Shared API contracts, Zod request/response schemas, and inferred TypeScript types.
 
 ---
 
-## Quickstart
+## 2. Quick Start
 
 ### Prerequisites
 
-- Node.js `v20+` or `v24+` (tested on `v24.20.0`)
-- pnpm `v10+` or `v12+` (tested on `v12.8.1`)
-- Git
+- Node.js $\ge 20$
+- pnpm $\ge 9$
 
-### Installation
-
-From the `workspace/nasa_experience/` directory:
+### Install Dependencies
 
 ```bash
-# Install dependencies
 pnpm install
+```
 
-# Run development server
+### Development Commands
+
+```bash
+# Start frontend application (Port 3000)
 pnpm dev
-```
 
-Open [http://localhost:3000](http://localhost:3000) to view the application.
+# Run frontend tests
+pnpm test:frontend
 
----
+# Run backend tests
+pnpm test:backend
 
-## Configuration
-
-Copy `.env.example` to `.env.local` and populate credentials:
-
-```bash
-cp .env.example .env.local
-```
-
-Refer to `docs/supabase-setup-guide.md` for instructions on retrieving Supabase keys and database connection strings.
-
----
-
-## Verification & Quality Assurance
-
-Run the automated quality assurance suite:
-
-```bash
-# Type checking (TypeScript Strict Mode)
-pnpm type-check
-
-# Linting
-pnpm lint
-
-# Code formatting check
-pnpm format:check
-
-# Production build
-pnpm build
-
-# Database connectivity test
+# Verify live database connectivity
 pnpm db:verify
+
+# Run all tests across monorepo
+pnpm test:all
+
+# Next.js production build
+pnpm build
 ```
 
 ---
 
-## Project Structure
+## 3. Environment Variables
 
-```
-nasa_experience/
-├── .agents/          # AI development workflows, rules, and skills
-├── docs/             # Technical specifications, architecture, decisions, and tasks
-├── public/           # Static 3D models, textures, audio, and sequences
-├── src/
-│   ├── app/          # Next.js App Router (pages, layouts, route handlers)
-│   ├── components/   # UI components (shadcn/ui), layouts, navigation
-│   ├── experiences/  # 3D WebGL scenes, shaders, GSAP cinematics
-│   ├── features/     # Problem statement domain features
-│   ├── hooks/        # Custom React hooks (useGSAP, useLenis)
-│   ├── lib/          # Core libraries (Supabase, Drizzle, React Query, Zod)
-│   ├── stores/       # Zustand client stores
-│   └── styles/       # Styling tokens
-└── drizzle.config.ts # Drizzle Kit configuration
-```
+Root `.env.local` contains live Supabase configuration and database URLs.
+It is loaded automatically by `frontend/next.config.ts` and `backend/config/env.ts`.
+Never commit `.env.local`.

@@ -1,6 +1,6 @@
 # NASA Space Apps — Verification & Testing Protocol
 
-This document outlines the testing strategy, performance targets, and verification runbooks for the NASA Space Apps platform.
+This document outlines the testing strategy, performance targets, independent test runners, and verification runbooks for the physical monorepo structure.
 
 ---
 
@@ -12,67 +12,63 @@ The platform is designed to achieve the following performance targets:
 - **Largest Contentful Paint (LCP)**: $\le 2.5\text{s}$.
 - **Interaction to Next Paint (INP)**: $\le 200\text{ms}$.
 - **Cumulative Layout Shift (CLS)**: $\le 0.1$.
-- **Initial Shared JavaScript**: Minimal footprint (measured at 102 kB on base build).
+- **Initial Shared JavaScript**: Minimal footprint (102 kB on production build).
 - **WebGL Lazy Loading**: 3D canvases must not be initialized until required in viewport.
 
 ---
 
-## 2. Verification Suite Commands
+## 2. Independent Test Commands by Workspace
 
-Execute all checks sequentially before submitting or reviewing any changes:
+### A. Shared Contract Suite (`packages/contracts/`)
 
-### A. TypeScript Type Check
+Validates that all contract schemas parse valid payloads and reject invalid shapes:
 
 ```bash
-pnpm type-check
+pnpm test:contract
 ```
 
-- **Tool**: TypeScript Compiler (`tsc --noEmit`).
-- **Standard**: Zero errors under `strict: true`, `noImplicitAny: true`, and `noUnusedLocals: true`.
+### B. Backend Developer Suite (`backend/`)
 
-### B. Unit & Integration Tests
-
-```bash
-pnpm test
-```
-
-- **Tool**: Vitest runner with React Testing Library and JSDOM.
-- **Standard**: 100% passing across utility functions, environment validation, API response schemas, and accessible UI components.
-
-### C. Linting
+Executes domain services, repository queries, and database verification:
 
 ```bash
-pnpm lint
-```
+# Run backend tests
+pnpm test:backend
 
-- **Tool**: ESLint with Next.js Core Web Vitals plugin.
-- **Standard**: Zero warnings, zero errors.
-
-### D. Formatting Check
-
-```bash
-pnpm format:check
-```
-
-- **Tool**: Prettier with `prettier-plugin-tailwindcss`.
-- **Remediation**: Run `pnpm format` to auto-format if formatting check fails.
-
-### E. Production Build
-
-```bash
-pnpm build
-```
-
-- **Tool**: Next.js Production Compiler.
-- **Standard**: Generates static pages and dynamic route handlers without runtime SSR errors or bundle warnings.
-
-### F. Database Connectivity Check
-
-```bash
+# Verify live PostgreSQL connectivity
 pnpm db:verify
 ```
 
-- **Tool**: Custom standalone probe using `tsx` and `postgres-js`.
-- **Behavior**:
-  - If `DATABASE_URL` is configured: Executes real SQL query against PostgreSQL instance and verifies Drizzle ORM communication.
-  - If `DATABASE_URL` is unconfigured: Safely logs missing configuration instructions without crashing.
+### C. Frontend Developer Suite (`frontend/`)
+
+Executes UI components, hooks, stores, and frontend mock client services:
+
+```bash
+pnpm test:frontend
+```
+
+---
+
+## 3. Mandatory Quality Gate Runbook
+
+Before submitting or reviewing any Pull Request, execute the full quality suite:
+
+```bash
+# 1. Architectural Boundary Enforcement
+pnpm boundary:check
+
+# 2. Strict TypeScript Type Check across all packages
+pnpm type-check
+
+# 3. Code Formatting Verification
+pnpm format:check
+
+# 4. Comprehensive Test Suite
+pnpm test:all
+
+# 5. Next.js Production Build Compilation
+pnpm build
+
+# 6. Database Connectivity Check
+pnpm db:verify
+```

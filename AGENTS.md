@@ -4,77 +4,102 @@ This document establishes the binding constitution for all AI agents, engineers,
 
 ---
 
+## Physical Ownership Model: Frontend, Backend & Contracts
+
+The repository is physically partitioned into three independent top-level workspaces:
+
+- **`frontend/` (Developer A — Frontend Lead)**:
+  - Exclusive ownership of the Next.js 15 application (`frontend/src/**`).
+  - Next.js App Router, React 19 Server/Client Components, GSAP cinematics, Three.js / React Three Fiber canvases, Lenis smooth scrolling, Zustand client stores, and frontend API client services (`frontend/src/services/api/`).
+  - Strict prohibition: Must NEVER modify `backend/**`, Drizzle schemas, migrations, or database queries.
+- **`backend/` (Developer B — Backend Lead)**:
+  - Exclusive ownership of Supabase backend assets (`backend/**`).
+  - Drizzle ORM schema registry (`backend/database/schema/`), migrations (`backend/database/migrations/`), database repositories (`backend/database/repositories/`), singleton Drizzle client (`backend/database/client.ts`), verification probes (`backend/database/verify.ts`), and backend domain services (`backend/services/`).
+  - Supabase remains our sole backend infrastructure (PostgreSQL, Auth, RLS, Storage).
+  - Strict prohibition: Must NEVER modify frontend UI components, layouts, GSAP timelines, or styling in `frontend/**`.
+- **`packages/contracts/` (Collaborative — Shared API Contracts)**:
+  - Single source of truth for all API schemas, Zod request/response models, and type definitions.
+  - Changes require a documented RFC in `docs/API_CONTRACT.md` approved by both developers.
+- **`docs/` and `.agents/`**: Shared project documentation and agent governance.
+
+---
+
 ## The 14 Immutable Operational Rules
 
 ### 1. Act as a Senior Software Engineer
 
-Approach every problem with architectural rigor, foresight, and restraint. Prioritize simplicity, correctness, maintainability, and real-world performance over flashy or unmaintainable hacks.
+Approach every problem with architectural rigor, foresight, and restraint. Prioritize simplicity, correctness, maintainability, and real-world performance over flashy hacks.
 
 ### 2. Understand Existing Implementation Before Modifying Anything
 
-Before writing code or altering configuration, thoroughly inspect existing files, dependencies, and git state. Never overwrite, refactor, or delete working code without clear, justifiable reason.
+Before writing code or altering configuration, thoroughly inspect existing files, dependencies, and git state. Never overwrite or delete working code without clear justification.
 
-### 3. Read Relevant Documentation Before Starting a Task
+### 3. Respect Physical File Ownership Boundaries
 
-Review official documentation for libraries and frameworks (Next.js App Router, React 19, Tailwind CSS 4, GSAP, Three.js, Supabase, Drizzle ORM) prior to implementation. Do not rely on assumptions or stale knowledge.
+- A FRONTEND task must not touch files in `backend/**`.
+- A BACKEND task must not touch files in `frontend/**`.
+- An INTEGRATION task is the only authorized phase in which cross-boundary coordination occurs.
 
-### 4. Follow the Approved Architecture
+### 4. Read Relevant Documentation Before Starting a Task
 
-Respect established layer boundaries:
+Review official documentation for libraries and frameworks (Next.js App Router, React 19, Tailwind CSS 4, GSAP, Three.js, Supabase, Drizzle ORM) prior to implementation.
 
-- **Presentation Layer**: Next.js App Router Server/Client Components, GSAP, Three.js/R3F, Tailwind CSS.
-- **Application Services Layer**: Route Handlers, React Query, Zustand, Server Actions.
-- **Data Infrastructure Layer**: Supabase Auth, PostgreSQL, Drizzle ORM.
-  Do not introduce unauthorized alternatives or bypass established abstraction layers.
+### 5. Follow the Approved Physical Architecture
 
-### 5. Never Introduce Unauthorized Dependencies
+Respect workspace boundaries:
 
-Every dependency must be justified and explicitly approved. Never install competing routers, state managers, ORMs, or CSS frameworks (e.g., TanStack Router, Redux, Prisma, Bootstrap, MUI).
+- `frontend/` contains all presentation code and client services.
+- `backend/` contains all database and Supabase backend logic.
+- `packages/contracts/` contains shared Zod contracts.
 
-### 6. Never Fabricate APIs, Library Behavior, or Technical Facts
+### 6. Never Introduce Unauthorized Dependencies
 
-Only utilize documented, verified methods, parameters, and return types. If an API signature or feature capability is uncertain, check official references or verify with minimal test code.
+No separate Express, Fastify, Hono, or competing backend frameworks. Supabase is our sole backend infrastructure.
 
-### 7. Verify Unfamiliar Technical Decisions Against Official Documentation
+### 7. Never Fabricate APIs, Library Behavior, or Technical Facts
 
-When encountering new version behaviors (e.g., Tailwind CSS 4 CSS-first config, React 19 hooks, Supabase SSR cookie synchronization), consult official release notes and documentation before making architectural choices.
+Only utilize documented, verified methods, parameters, and return types. Verify uncertain signatures against official references.
 
-### 8. Follow TypeScript Strictness and Clean Coding Conventions
+### 8. Verify Technical Decisions Against Official Documentation
 
-Strict TypeScript (`strict: true`) is non-negotiable. Prohibit `any`, unchecked index accesses, and suppressed compiler warnings. Write clean, modular, self-documenting code with comprehensive typing.
+Consult release notes and official documentation before making architectural choices (React 19 hooks, Tailwind 4 CSS-first theme, Supabase SSR cookie synchronization).
 
-### 9. Never Expose Secrets
+### 9. Follow TypeScript Strictness and Clean Coding Conventions
 
-Database credentials, `SUPABASE_SERVICE_ROLE_KEY`, and private tokens must remain server-side. Never prefix private variables with `NEXT_PUBLIC_`. Never commit `.env.local` or print unmasked secret values to terminals or documentation.
+Strict TypeScript (`strict: true`) is non-negotiable across all workspace packages. Prohibit `any`, unchecked index accesses, and suppressed compiler warnings.
 
-### 10. Run Relevant Checks Before Declaring Work Complete
+### 10. Never Expose Secrets
+
+Database credentials, `DATABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY` must remain server-side. Never prefix private variables with `NEXT_PUBLIC_`. Never commit `.env.local` or print unmasked secret values to logs or documentation.
+
+### 11. Run Relevant Checks Before Declaring Work Complete
 
 Prior to presenting deliverables, execute the verification suite:
 
-- `pnpm type-check` (Strict type safety)
-- `pnpm lint` (Linting standards)
+- `pnpm boundary:check` (ESLint import boundary rules)
+- `pnpm type-check` (Strict TypeScript across all workspaces)
 - `pnpm format:check` (Code formatting)
+- `pnpm test:all` (Contract, backend, and frontend tests)
 - `pnpm build` (Production compilation)
-- `pnpm db:verify` (Database connectivity)
+- `pnpm db:verify` (Database connectivity probe)
 
-### 11. Report Actual Test Results
+### 12. Report Actual Test Results
 
-Provide true, unembellished command execution output. Never claim tests passed or databases connected when they were skipped, unconfigured, or failed.
+Provide true, unembellished command execution output. Never claim tests passed when they were skipped or failed.
 
-### 12. Update Project Documentation After Meaningful Changes
+### 13. Update Project Documentation After Meaningful Changes
 
-When adding features, altering architecture, or adding dependencies, synchronize:
+When adding features or changing architecture, synchronize:
 
+- `docs/API_CONTRACT.md`
+- `docs/FRONTEND_BOUNDARY.md`
+- `docs/BACKEND_BOUNDARY.md`
+- `docs/INTEGRATION_WORKFLOW.md`
+- `docs/DEVELOPMENT_WORKFLOW.md`
 - `docs/TASKS.md`
 - `docs/HANDOFF.md`
-- `docs/TECH_STACK.md`
-- `docs/DECISIONS.md`
 - `TESTING.md`
 
-### 13. Ask for Clarification When Important Requirements Are Missing
+### 14. Never Silently Change Architectural Decisions or Shared Contracts
 
-Do not guess or assume ambiguous requirements, missing business domain rules, or unstated design parameters. Ask the Technical Lead / User directly.
-
-### 14. Never Silently Change Architectural Decisions
-
-If an architectural decision is found to be problematic or unviable, surface the technical constraint explicitly in `docs/DECISIONS.md` and discuss alternatives before changing direction.
+If an architectural or contract change is necessary, stop, document an RFC in `docs/API_CONTRACT.md` or an ADR in `docs/DECISIONS.md`, and obtain explicit approval before implementation.

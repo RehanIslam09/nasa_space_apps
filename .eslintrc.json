@@ -1,3 +1,82 @@
 {
-  "extends": ["next/core-web-vitals", "next/typescript"]
+  "extends": ["next/core-web-vitals", "next/typescript"],
+  "ignorePatterns": ["**/next-env.d.ts", "**/.next/**", "**/dist/**"],
+  "overrides": [
+    {
+      "files": [
+        "frontend/src/components/**",
+        "frontend/src/experiences/**",
+        "frontend/src/hooks/**",
+        "frontend/src/stores/**",
+        "frontend/src/services/**"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "server-only",
+                "message": "Boundary Violation: Frontend client code cannot import server-only modules."
+              }
+            ],
+            "patterns": [
+              {
+                "group": [
+                  "@nasa-experience/backend",
+                  "@nasa-experience/backend/**",
+                  "backend/**",
+                  "../backend/**"
+                ],
+                "message": "Boundary Violation: Frontend UI components and client services cannot import backend implementation modules. Use domain services or contracts."
+              },
+              {
+                "group": ["drizzle-orm", "drizzle-orm/**", "postgres", "postgres/**"],
+                "message": "Boundary Violation: Frontend UI code cannot import database clients, Drizzle ORM, or PostgreSQL modules directly."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["backend/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@nasa-experience/frontend/**", "frontend/**", "../frontend/**"],
+                "message": "Boundary Violation: Backend code cannot import frontend UI components, hooks, experiences, or stores."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/contracts/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@nasa-experience/backend/**",
+                  "@nasa-experience/frontend/**",
+                  "backend/**",
+                  "frontend/**",
+                  "../backend/**",
+                  "../frontend/**"
+                ],
+                "message": "Boundary Violation: Shared contracts must be self-contained and must not import frontend or backend implementation modules."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }

@@ -1,0 +1,57 @@
+# ==============================================================================
+# NASA Space Apps — Backend .gitignore (Supabase & Database Assets)
+# ==============================================================================
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Compilation & Build outputs
+dist/
+build/
+
+# Environment variables & local credentials (CRITICAL: NEVER COMMIT SECRETS)
+.env
+.env*.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+
+# Supabase CLI local runtime state & temporary data
+.supabase/
+!.supabase/config/
+
+# Drizzle local cache & studio artifacts
+.drizzle/
+drizzle-studio.log*
+
+# Testing & Coverage
+coverage/
+.vitest/
+
+# Debug logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS and Editor metadata
+.DS_Store
+Thumbs.db
+*.pem
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# TypeScript build info
+*.tsbuildinfo
+

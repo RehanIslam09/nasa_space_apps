@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["esnext"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "declaration": true,
+    "esModuleInterop": true,
+    "paths": {
+      "@/*": ["./*"],
+      "@nasa-experience/contracts": ["../packages/contracts/src"]
+    }
+  },
+  "include": ["**/*.ts"]
+}

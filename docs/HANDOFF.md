@@ -1,34 +1,58 @@
 # NASA Space Apps — Engineering Handoff Document
 
-## Session Status: Phase 01 Bootstrap & Live Database Verification Complete
+## Session Status: Phase F Physical Frontend/Backend Separation Complete
 
 ### Current State Summary
 
-The production-ready engineering foundation is fully operational in `workspace/nasa_experience/`. Live Supabase credentials and Sydney (`ap-southeast-2`) Supavisor PostgreSQL pooling have been integrated, verified with live SQL probes, and tested against production builds.
+The repository has been restructured into an independently developable Physical Monorepo with three top-level packages:
+
+- **`frontend/`**: Complete Next.js 15 App Router application owned by Developer A.
+- **`backend/`**: Supabase backend infrastructure, Drizzle schemas, migrations, repositories, and services owned by Developer B.
+- **`packages/contracts/`**: Shared API contracts (`@nasa-experience/contracts`) governed by RFCs.
+- **Root**: Coordinates workspace packages, orchestrates build and test commands, and safely manages root `.env` / `.env.local`.
 
 ### Verified Architecture & Live Infrastructure
 
-1. **Working Directory**: `workspace/nasa_experience/` (Self-contained Git repository, uncommitted per user review protocol).
-2. **Framework Stack**: Next.js `15.5.29`, React `19.3.1`, TypeScript `5.9.3`, Tailwind CSS `4.3.5`.
-3. **Data Stack**: Supabase SSR `0.12.7`, Drizzle ORM `0.45.4`, postgres-js `3.4.9` connected to Supabase Sydney (`ap-southeast-2`).
-4. **Cinematics & 3D**: GSAP `3.15.1`, Lenis `1.3.27`, Three.js `0.173.0`, React Three Fiber `9.8.2`, Drei `10.7.9`.
-5. **State**: TanStack Query `5.107.1`, Zustand `5.1.0`, Zod `3.25.76`.
+1. **Root Directory**: `workspace/nasa_experience/` (Self-contained Git repository on branch `main`).
+2. **Environment Files**: Root `.env` and `.env.local` preserved byte-for-byte; loaded by `frontend/next.config.ts` and `backend/config/env.ts` via `dotenv`.
+3. **Database Connectivity**: Standalone probe in `backend/database/verify.ts` connects to Supabase Sydney (`ap-southeast-2`) Supavisor pooler on port 6543 (`prepare: false`).
+4. **Next.js Application**: Builds cleanly from `frontend/` (`pnpm build`).
 
 ### Verification Suite Results
 
-- `pnpm type-check`: Passed (0 errors, strict mode enabled).
-- `pnpm lint`: Passed (0 errors, 0 warnings).
-- `pnpm format:check`: Passed.
-- `pnpm build`: Passed (clean production build, 102 kB shared bundle size).
-- `pnpm db:verify`: **LIVE SUCCESS**
-  - Host: `aws-0-ap-southeast-2.pooler.supabase.com:6543` (Supavisor Transaction Pooler, `prepare: false`)
-  - Server Engine: `PostgreSQL 17.11`
-  - Authentication: Succeeded
-  - Query: Live SQL probe (`SELECT 1 AS connected, NOW(), version()`) and Drizzle ORM execution verified.
+- `pnpm boundary:check`: **PASSED** (0 boundary violations).
+- `pnpm type-check`: **PASSED** (0 TypeScript errors across all workspace packages).
+- `pnpm format:check`: **PASSED** (100% Prettier compliant).
+- `pnpm test:all`: **PASSED** (19/19 tests passing across all packages).
+  - `pnpm test:contract`: 5/5 tests passing.
+  - `pnpm test:backend`: 1/1 test passing.
+  - `pnpm test:frontend`: 13/13 tests passing.
+- `pnpm build`: **PASSED** (Clean production build, 102 kB shared bundle).
+- `pnpm db:verify`: **PASSED** (Live query against Supabase PostgreSQL 17.11 verified).
 
-### Immediate Next Steps for Next Session / Engineer
+### Exact Start Commands for Developers
 
-1. **Phase 02 Problem Statement Alignment**:
-   - Align on the specific NASA Space Apps challenge problem statement.
-   - Define data schemas in `src/lib/db/schema.ts` and generate migrations (`pnpm db:generate`).
-   - Scaffold domain features in `src/features/`.
+#### Developer A (Frontend Lead)
+
+```bash
+cd workspace/nasa_experience
+# Start frontend Next.js dev server on port 3000
+pnpm dev
+
+# Run frontend tests
+pnpm test:frontend
+```
+
+#### Developer B (Backend Lead)
+
+```bash
+cd workspace/nasa_experience
+# Run backend tests
+pnpm test:backend
+
+# Verify live database connectivity
+pnpm db:verify
+
+# Generate migrations
+pnpm db:generate
+```
