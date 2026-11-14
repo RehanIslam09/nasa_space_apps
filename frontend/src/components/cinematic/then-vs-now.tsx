@@ -211,6 +211,7 @@ export function ThenVsNow() {
         <GlobeViewer
           selectedPhase={selectedPhase}
           comparisonData={comparisonData}
+          onPhaseChange={handleSelectPhase}
         />
 
         {/* Main Stage Grid: Interactive Audio Player & Scientific Metrics */}

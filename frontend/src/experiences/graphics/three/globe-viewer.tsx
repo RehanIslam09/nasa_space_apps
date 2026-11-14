@@ -1,19 +1,26 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { RotateCcw, Compass } from 'lucide-react';
+import { RotateCcw, Compass, Crosshair } from 'lucide-react';
 import { OrbitControls } from '@react-three/drei';
 import type { CompareResponse } from '@nasa-experience/contracts';
 import { CanvasContainer } from './canvas-container';
 import { NasaEarthModel } from './nasa-earth-model';
 import { EarthLighting } from './earth-lighting';
 import { EarthEnvironment } from './earth-environment';
+import { LocationIntelligencePanel } from './location-intelligence-panel';
+import {
+  type GeographicLocationIntelligence,
+  NASA_ANCHOR_STATIONS,
+} from './environmental-data';
+import { environmentalAudioEngine } from './environmental-audio-engine';
 
 type OrbitControlsHandle = React.ElementRef<typeof OrbitControls>;
 
 interface GlobeViewerProps {
   selectedPhase: 'a' | 'b' | 'diff';
   comparisonData: CompareResponse | null;
+  onPhaseChange?: (phase: 'a' | 'b' | 'diff') => void;
   className?: string;
 }
 
@@ -26,18 +33,31 @@ interface GlobeViewerProps {
  * - Directional solar lighting and atmospheric Rayleigh scattering
  * - Smooth OrbitControls with interaction pause and camera reset
  * - Touch-friendly non-blocking page scrolling
+ * - Precise geographic picking & tactical location intelligence HUD
+ * - Procedural Web Audio environmental sonification engine
  * - Accessible 2D fallback for devices without WebGL
  */
 export function GlobeViewer({
   selectedPhase,
   comparisonData,
+  onPhaseChange,
   className = 'relative mt-8 h-[380px] sm:h-[460px] md:h-[520px] lg:h-[560px] w-full overflow-hidden rounded-2xl border border-white/10 bg-black/85 shadow-2xl',
 }: GlobeViewerProps) {
   const [hasWebGL, setHasWebGL] = useState<boolean>(false);
   const [diffActiveYear, setDiffActiveYear] = useState<'2012' | '2023'>('2023');
   const [isInteracting, setIsInteracting] = useState(false);
+  const [selectedLocation, setSelectedLocation] =
+    useState<GeographicLocationIntelligence | null>(null);
+
   const controlsRef = useRef<OrbitControlsHandle>(null);
   const resetEarthRotationRef = useRef<(() => void) | null>(null);
+
+  // Clean up procedural audio on unmount
+  useEffect(() => {
+    return () => {
+      environmentalAudioEngine.stop();
+    };
+  }, []);
 
   // Synchronize observation year with selected phase
   const currentObservationYear: '2012' | '2023' =
@@ -71,6 +91,8 @@ export function GlobeViewer({
     if (resetEarthRotationRef.current) {
       resetEarthRotationRef.current();
     }
+    setSelectedLocation(null);
+    environmentalAudioEngine.stop();
   }, []);
 
   const handleResetReady = useCallback((resetFn: () => void) => {
@@ -178,7 +200,7 @@ export function GlobeViewer({
             {/* Background Stars & Atmospheric Outer Glow */}
             <EarthEnvironment />
 
-            {/* Official NASA 3D Earth Model with Black Marble Radiance */}
+            {/* Official NASA 3D Earth Model with Black Marble Radiance & Geographic Picking */}
             <NasaEarthModel
               observationYear={currentObservationYear}
               isDiffMode={isDiffMode}
@@ -187,6 +209,8 @@ export function GlobeViewer({
               isInteracting={isInteracting}
               sunPosition={[4.5, 1.8, 2.5]}
               onResetReady={handleResetReady}
+              selectedLocation={selectedLocation}
+              onSelectLocation={setSelectedLocation}
             />
 
             {/* Smooth Camera Interaction Controls */}
@@ -264,20 +288,64 @@ export function GlobeViewer({
         </button>
       </div>
 
-      {/* 4. Bottom-Center: Subtle User Navigation Hint */}
-      <div className="pointer-events-none absolute bottom-3.5 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full border border-white/10 bg-black/65 px-3.5 py-1 backdrop-blur-md">
+      {/* 4. Bottom-Left: Quick Tactical Target Stations (NASA Key Studies) */}
+      <div className="absolute bottom-3.5 left-3.5 hidden md:flex items-center gap-1.5 rounded-full border border-white/10 bg-black/75 p-1 backdrop-blur-md z-20">
+        <Crosshair className="size-3 ml-1.5 text-cyan-400" />
+        <span className="font-mono text-[9px] uppercase tracking-wider text-slate-400 mr-1">
+          Tactical Targets:
+        </span>
+        {NASA_ANCHOR_STATIONS.slice(0, 5).map((station) => (
+          <button
+            key={station.id}
+            type="button"
+            onClick={() => setSelectedLocation(station)}
+            aria-label={`Target ${station.name}`}
+            className={`rounded-full px-2.5 py-0.5 font-mono text-[9px] uppercase transition-all ${
+              selectedLocation?.id === station.id
+                ? 'bg-cyan-500/30 text-cyan-200 border border-cyan-400/50 shadow-[0_0_8px_rgba(56,189,248,0.3)]'
+                : 'text-slate-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            {station.id === 'amazon-basin'
+              ? 'Amazon'
+              : station.id === 'arctic-svalbard'
+              ? 'Arctic'
+              : station.id === 'india-indo-gangetic'
+              ? 'India'
+              : station.id === 'california-sierra'
+              ? 'California'
+              : 'Sahara'}
+          </button>
+        ))}
+      </div>
+
+      {/* 5. Bottom-Center: Subtle User Navigation Hint */}
+      <div className="pointer-events-none absolute bottom-3.5 left-1/2 -translate-x-1/2 hidden xl:flex items-center gap-2 rounded-full border border-white/10 bg-black/65 px-3.5 py-1 backdrop-blur-md">
         <Compass className="size-3 text-cyan-400" />
         <span className="font-mono text-[10px] uppercase tracking-wider text-slate-300">
-          Drag to Orbit • Scroll to Zoom
+          Click Any Location to Sonify • Drag to Orbit
         </span>
       </div>
 
-      {/* 5. Authentic NASA Attribution Watermark */}
+      {/* 6. Authentic NASA Attribution Watermark */}
       <div className="pointer-events-none absolute bottom-3.5 right-3.5 hidden sm:block rounded-full border border-white/10 bg-black/75 px-3 py-1 backdrop-blur-md">
         <span className="font-mono text-[9px] uppercase tracking-wider text-slate-400">
           NASA SVS #5313 • VTAD GLTF
         </span>
       </div>
+
+      {/* 7. Floating Tactical Location Intelligence Panel */}
+      {selectedLocation && (
+        <LocationIntelligencePanel
+          location={selectedLocation}
+          onClose={() => {
+            setSelectedLocation(null);
+            environmentalAudioEngine.stop();
+          }}
+          selectedPhase={selectedPhase}
+          onPhaseChange={onPhaseChange}
+        />
+      )}
     </div>
   );
 }

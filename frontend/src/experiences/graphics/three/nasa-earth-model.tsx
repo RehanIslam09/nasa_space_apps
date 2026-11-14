@@ -2,9 +2,18 @@
 
 import { useRef, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { useGLTF, useTexture } from '@react-three/drei';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
+import { LocationMarker } from './location-marker';
+import {
+  localVectorToGeodesic,
+  DragVsClickDetector,
+} from './geographic-picking';
+import {
+  type GeographicLocationIntelligence,
+  resolveGeographicLocation,
+} from './environmental-data';
 
 export interface NasaEarthModelProps {
   observationYear?: '2012' | '2023';
@@ -14,6 +23,8 @@ export interface NasaEarthModelProps {
   isInteracting?: boolean;
   sunPosition?: [number, number, number];
   onResetReady?: (resetFn: () => void) => void;
+  selectedLocation?: GeographicLocationIntelligence | null;
+  onSelectLocation?: (location: GeographicLocationIntelligence) => void;
 }
 
 // GLSL Vertex Shader for NASA Earth Model
@@ -148,10 +159,13 @@ export function NasaEarthModel({
   isInteracting = false,
   sunPosition = [4.5, 1.8, 2.5],
   onResetReady,
+  selectedLocation = null,
+  onSelectLocation,
 }: NasaEarthModelProps) {
   const earthGroupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const prefersReducedMotion = useReducedMotion();
+  const dragDetector = useMemo(() => new DragVsClickDetector(6, 350), []);
 
   // Load official NASA 3D model (optimized 2.5MB GLB with identical geometry & 4K textures)
   const gltf = useGLTF('/models/EarthClouds_1_12756_optimized.glb');
@@ -253,16 +267,37 @@ export function NasaEarthModel({
     }
 
     // 2. Majestic planetary rotation around polar axis
-    // Pauses during user drag or when reduced-motion is requested
+    // Pauses during user drag, when a location is inspected, or when reduced-motion is requested
     if (
       earthGroupRef.current &&
       autoRotate &&
       !isInteracting &&
+      !selectedLocation &&
       !prefersReducedMotion
     ) {
       earthGroupRef.current.rotation.y += delta * (autoRotateSpeed * 0.1);
     }
   });
+
+  // Pointer event handlers distinguishing drag vs click
+  const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
+    dragDetector.onPointerDown(e.clientX, e.clientY);
+  };
+
+  const handlePointerUp = (e: ThreeEvent<PointerEvent>) => {
+    const isClick = dragDetector.onPointerUp(e.clientX, e.clientY);
+    if (!isClick || !onSelectLocation || !earthGroupRef.current) return;
+
+    e.stopPropagation();
+    const worldPoint = e.point;
+    // Transform into local space of the rotating Earth group
+    const localPoint = earthGroupRef.current.worldToLocal(worldPoint.clone());
+    // Convert to geodesic latitude and longitude
+    const coords = localVectorToGeodesic(localPoint);
+    // Resolve authentic NASA location telemetry
+    const locationData = resolveGeographicLocation(coords.lat, coords.lon);
+    onSelectLocation(locationData);
+  };
 
   // Provide camera and rotation reset callback
   useEffect(() => {
@@ -306,7 +341,18 @@ export function NasaEarthModel({
           material={shaderMaterial}
           scale={[NASA_MODEL_SCALE, NASA_MODEL_SCALE, NASA_MODEL_SCALE]}
           name="nasa-earth-mesh"
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
         />
+
+        {/* 3D Holographic Reticle Marker pinned to selected location */}
+        {selectedLocation && (
+          <LocationMarker
+            lat={selectedLocation.coordinates.lat}
+            lon={selectedLocation.coordinates.lon}
+            isDiffMode={isDiffMode}
+          />
+        )}
       </group>
     </group>
   );

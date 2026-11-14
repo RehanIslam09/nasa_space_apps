@@ -3,3 +3,8 @@ export * from './nasa-earth-model';
 export * from './earth-lighting';
 export * from './earth-environment';
 export * from './globe-viewer';
+export * from './geographic-picking';
+export * from './environmental-data';
+export * from './environmental-audio-engine';
+export * from './location-marker';
+export * from './location-intelligence-panel';
