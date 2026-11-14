@@ -43,12 +43,12 @@ export function JukeboxExperience() {
   }, []);
 
   const handleTogglePlay = useCallback(() => {
-    setIsPlayingAudio((prev) => {
-      const next = !prev;
-      if (next && isMuted) setMuted(false);
-      return next;
-    });
-  }, [isMuted, setMuted]);
+    const nextState = !isPlayingAudio;
+    setIsPlayingAudio(nextState);
+    if (nextState && isMuted) {
+      setMuted(false);
+    }
+  }, [isPlayingAudio, isMuted, setMuted]);
 
   const handleSelectTrack = useCallback((track: SonicTrackConfig) => {
     setActiveTrack((prev) => (prev.id === track.id ? prev : track));

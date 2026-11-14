@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { type SonicTrackConfig } from '@/config/earth-song.config';
+import type { SonicTrackConfig } from '@/config/earth-song.config';
 import {
   Play,
   Pause,
@@ -9,15 +9,26 @@ import {
   ShieldCheck,
   Volume2,
   VolumeX,
-  Layers,
+  Sliders,
+  Compass,
   Info,
-  Sparkles,
-  RefreshCw,
-  X,
+  Accessibility,
+  Radio,
 } from 'lucide-react';
 import { useAppStore } from '@/stores/app-store';
 import { sonificationService, insightsService } from '@/services/api';
 import type { AccessibilityResponse } from '@nasa-experience/contracts';
+
+// Subcomponents and hooks
+import { useAudioGraph } from './audio-console/use-audio-graph';
+import { useAnnouncer } from './audio-console/use-announcer';
+import { useSpeech } from './audio-console/use-speech';
+import { useHaptics } from './audio-console/use-haptics';
+import { ConsoleVisualizer } from './audio-console/console-visualizer';
+import { MixerPanel } from './audio-console/mixer-panel';
+import { SpacePanel } from './audio-console/space-panel';
+import { SciencePanel } from './audio-console/science-panel';
+import { AccessPanel } from './audio-console/access-panel';
 
 interface AudioDockConsoleProps {
   activeTrack: SonicTrackConfig;
@@ -25,14 +36,23 @@ interface AudioDockConsoleProps {
   onTogglePlay: () => void;
 }
 
+export type ConsoleDrawer = 'mixer' | 'space' | 'science' | 'access' | null;
+
 export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: AudioDockConsoleProps) {
+  // 3-Band Equalizer (Low / Mid / High)
   const [eqBass, setEqBass] = useState(65);
   const [eqMid, setEqMid] = useState(75);
   const [eqHigh, setEqHigh] = useState(60);
+
+  // 2D Spatial Audio & Atmospheric Reverb
+  const [spaceX, setSpaceX] = useState(0);
+  const [spaceY, setSpaceY] = useState(0.5);
+  const [atmosphereReverb, setAtmosphereReverb] = useState(0.2);
+
+  // Time & Duration
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(180);
   const [healthStatus, setHealthStatus] = useState<'idle' | 'checking' | 'healthy'>('idle');
-  const [announcement, setAnnouncement] = useState('');
 
   // Real NASA audio & customization state
   const [activeAudioSource, setActiveAudioSource] = useState<string>(
@@ -41,8 +61,9 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [customMixActive, setCustomMixActive] = useState(false);
   const [audioFallbackActive, setAudioFallbackActive] = useState(false);
-  const [showMixer, setShowMixer] = useState(false);
-  const [showAccessibility, setShowAccessibility] = useState(false);
+
+  // Active drawer tab: 'mixer' | 'space' | 'science' | 'access' | null
+  const [activeDrawer, setActiveDrawer] = useState<ConsoleDrawer>(null);
   const [accessibilityData, setAccessibilityData] = useState<AccessibilityResponse | null>(null);
 
   // 4-layer constituent adjustments (0 to 100%)
@@ -51,23 +72,26 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
   const [smokeVolume, setSmokeVolume] = useState(65);
   const [sulfateVolume, setSulfateVolume] = useState(50);
 
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-  const bassFilterRef = useRef<BiquadFilterNode | null>(null);
-  const midFilterRef = useRef<BiquadFilterNode | null>(null);
-  const highFilterRef = useRef<BiquadFilterNode | null>(null);
+  // Accessibility & Sensory Settings
+  const [earconsSetting, setEarconsSetting] = useState<'full' | 'minimal' | 'off'>('full');
+  const [tactileEnabled, setTactileEnabled] = useState(false);
+  const [tactileCutoff, setTactileCutoff] = useState<68 | 136>(136);
 
+  // Refs
+  const audioRef = useRef<HTMLAudioElement>(null);
   const mixerBtnRef = useRef<HTMLButtonElement>(null);
   const accessibilityBtnRef = useRef<HTMLButtonElement>(null);
+  const spaceBtnRef = useRef<HTMLButtonElement>(null);
+  const accessBtnRef = useRef<HTMLButtonElement>(null);
 
+  // Global store
   const { isMuted, toggleMute } = useAppStore();
 
-  const announce = useCallback((msg: string) => {
-    setAnnouncement(msg);
-  }, []);
+  // Custom audio hooks
+  const audioGraph = useAudioGraph();
+  const { announcement, announce, announceDebounced } = useAnnouncer();
+  const speech = useSpeech();
+  const haptics = useHaptics();
 
   // Reset and sync audio source when activeTrack changes
   useEffect(() => {
@@ -78,24 +102,73 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
     announce(`Now exploring ${activeTrack.title}, ${activeTrack.category} sonification.`);
   }, [activeTrack.id, activeTrack.audioSrc, activeTrack.title, activeTrack.category, announce]);
 
+  // Sync Equalizer with AudioGraph
+  useEffect(() => {
+    audioGraph.setEq(eqBass, eqMid, eqHigh);
+  }, [eqBass, eqMid, eqHigh, audioGraph]);
+
+  // Sync Spatial 2D position with AudioGraph
+  useEffect(() => {
+    audioGraph.setSpacePosition(spaceX, spaceY);
+  }, [spaceX, spaceY, audioGraph]);
+
+  // Sync Atmospheric Reverb with AudioGraph
+  useEffect(() => {
+    audioGraph.setAtmosphere(atmosphereReverb);
+  }, [atmosphereReverb, audioGraph]);
+
+  // Sync Tactile Sub-Bass with AudioGraph
+  useEffect(() => {
+    audioGraph.setTactile(tactileEnabled, tactileCutoff);
+  }, [tactileEnabled, tactileCutoff, audioGraph]);
+
+  // Play procedural earcons based on setting
+  const triggerEarcon = useCallback(
+    (type: 'play' | 'pause' | 'tab' | 'success' | 'alert') => {
+      if (earconsSetting === 'off') return;
+      if (earconsSetting === 'minimal' && (type === 'tab' || type === 'pause')) return;
+      audioGraph.playEarcon(type);
+    },
+    [earconsSetting, audioGraph]
+  );
+
+  const triggerDetent = useCallback(() => {
+    if (earconsSetting !== 'off') {
+      audioGraph.playDetentTick();
+    }
+    haptics.triggerHaptic('tick');
+  }, [earconsSetting, audioGraph, haptics]);
+
   // Handle Escape key to dismiss drawers and return focus
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (showAccessibility) {
-          setShowAccessibility(false);
+      if (e.key === 'Escape' && activeDrawer !== null) {
+        const closed = activeDrawer;
+        setActiveDrawer(null);
+        if (closed === 'science') {
           accessibilityBtnRef.current?.focus();
           announce('Closed Scientific Interpretation and Audio Legend panel.');
-        } else if (showMixer) {
-          setShowMixer(false);
+        } else if (closed === 'mixer') {
           mixerBtnRef.current?.focus();
           announce('Closed Constituent Layer Synthesizer panel.');
+        } else if (closed === 'space') {
+          spaceBtnRef.current?.focus();
+          announce('Closed Spatial Audio panel.');
+        } else if (closed === 'access') {
+          accessBtnRef.current?.focus();
+          announce('Closed Accessibility Settings panel.');
         }
+      } else if (e.key === ' ' && (e.target as HTMLElement).tagName !== 'INPUT') {
+        // Spacebar plays/pauses when not typing
+        e.preventDefault();
+        handlePlayToggle();
+      } else if ((e.key === 'm' || e.key === 'M') && (e.target as HTMLElement).tagName !== 'INPUT') {
+        handleToggleMute();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showAccessibility, showMixer, announce]);
+  }, [activeDrawer, announce]);
 
   // Reload audio on source update
   useEffect(() => {
@@ -105,6 +178,16 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
       audioRef.current.play().catch(() => {});
     }
   }, [activeAudioSource, isPlaying]);
+
+  // Sync audio tag with isPlaying state
+  useEffect(() => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.play().catch(() => {});
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isPlaying]);
 
   // Audio error fallback
   const handleAudioError = () => {
@@ -116,6 +199,44 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
       audioRef.current.load();
       if (isPlaying) {
         audioRef.current.play().catch(() => {});
+      }
+    }
+  };
+
+  // Handle Play/Pause
+  const handlePlayToggle = async () => {
+    if (audioRef.current) {
+      audioGraph.initGraph(audioRef.current);
+      await audioGraph.resumeContext();
+    }
+    const next = !isPlaying;
+    triggerEarcon(next ? 'play' : 'pause');
+    haptics.triggerHaptic(next ? 'double' : 'tap');
+    announce(next ? `Playing ${activeTrack.title} soundscape.` : `Paused ${activeTrack.title} soundscape.`);
+    onTogglePlay();
+  };
+
+  const handleToggleMute = () => {
+    toggleMute();
+    triggerDetent();
+    announce(isMuted ? 'Audio soundscape unmuted.' : 'Audio soundscape muted.');
+  };
+
+  // Timeline scrub
+  const handleScrub = (val: number) => {
+    setCurrentTime(val);
+    if (audioRef.current) {
+      audioRef.current.currentTime = val;
+    }
+    announceDebounced(`Timeline at ${formatTime(val)} of ${formatTime(duration)}`, 500);
+  };
+
+  // Audio Time Update
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+      if (audioRef.current.duration && !isNaN(audioRef.current.duration)) {
+        setDuration(audioRef.current.duration);
       }
     }
   };
@@ -142,23 +263,34 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
       if (res.success && res.data) {
         setActiveAudioSource(res.data.download_url);
         setCustomMixActive(true);
-        announce(`Custom sonification mix generated successfully and active.`);
+        triggerEarcon('success');
+        haptics.triggerHaptic('success');
+        announce('Custom sonification mix generated successfully and active.');
         if (!isPlaying) {
           onTogglePlay();
         }
       }
     } catch {
       announce('Failed to synthesize custom mix. Please retry.');
+      triggerEarcon('alert');
     } finally {
       setIsSynthesizing(false);
     }
   };
 
-  // Toggle Accessibility & Science Legend Drawer
-  const handleToggleAccessibility = async () => {
-    const nextState = !showAccessibility;
-    setShowAccessibility(nextState);
-    if (nextState) {
+  // Drawer Toggle Handlers
+  const handleToggleMixer = () => {
+    const next = activeDrawer === 'mixer' ? null : 'mixer';
+    setActiveDrawer(next);
+    triggerEarcon('tab');
+    announce(next ? 'Opened Constituent Layer Synthesizer panel.' : 'Closed Constituent Layer Synthesizer panel.');
+  };
+
+  const handleToggleScience = async () => {
+    const next = activeDrawer === 'science' ? null : 'science';
+    setActiveDrawer(next);
+    triggerEarcon('tab');
+    if (next) {
       announce('Opened Scientific Interpretation and Audio Legend panel.');
       if (!accessibilityData) {
         try {
@@ -176,254 +308,29 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
     }
   };
 
-  // Toggle Constituent Harmonic Mixer
-  const handleToggleMixer = () => {
-    const nextState = !showMixer;
-    setShowMixer(nextState);
-    announce(nextState ? 'Opened Constituent Layer Synthesizer panel.' : 'Closed Constituent Layer Synthesizer panel.');
+  const handleToggleSpace = () => {
+    const next = activeDrawer === 'space' ? null : 'space';
+    setActiveDrawer(next);
+    triggerEarcon('tab');
+    announce(next ? 'Opened 2D Planetary Sound Field panel.' : 'Closed 2D Planetary Sound Field panel.');
   };
 
-  // Setup Web Audio API & Filters
-  const setupWebAudio = useCallback(() => {
-    if (audioContextRef.current || !audioRef.current) return;
-
-    try {
-      const AudioCtx =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const ctx = new AudioCtx();
-      audioContextRef.current = ctx;
-
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 128;
-      analyser.smoothingTimeConstant = 0.85;
-      analyserRef.current = analyser;
-
-      const bass = ctx.createBiquadFilter();
-      bass.type = 'lowshelf';
-      bass.frequency.value = 250;
-      bass.gain.value = (eqBass - 50) * 0.4;
-      bassFilterRef.current = bass;
-
-      const mid = ctx.createBiquadFilter();
-      mid.type = 'peaking';
-      mid.frequency.value = 1000;
-      mid.Q.value = 1.0;
-      mid.gain.value = (eqMid - 50) * 0.4;
-      midFilterRef.current = mid;
-
-      const high = ctx.createBiquadFilter();
-      high.type = 'highshelf';
-      high.frequency.value = 4000;
-      high.gain.value = (eqHigh - 50) * 0.4;
-      highFilterRef.current = high;
-
-      const source = ctx.createMediaElementSource(audioRef.current);
-      sourceRef.current = source;
-
-      // Audio Graph: Source -> Bass -> Mid -> High -> Analyser -> Destination
-      source.connect(bass);
-      bass.connect(mid);
-      mid.connect(high);
-      high.connect(analyser);
-      analyser.connect(ctx.destination);
-    } catch {
-      // AudioContext fallback handled gracefully
-    }
-  }, [eqBass, eqMid, eqHigh]);
-
-  // Sync EQ Sliders with BiquadFilterNodes
-  useEffect(() => {
-    if (bassFilterRef.current) {
-      bassFilterRef.current.gain.value = (eqBass - 50) * 0.4;
-    }
-  }, [eqBass]);
-
-  useEffect(() => {
-    if (midFilterRef.current) {
-      midFilterRef.current.gain.value = (eqMid - 50) * 0.4;
-    }
-  }, [eqMid]);
-
-  useEffect(() => {
-    if (highFilterRef.current) {
-      highFilterRef.current.gain.value = (eqHigh - 50) * 0.4;
-    }
-  }, [eqHigh]);
-
-  // Handle Play/Pause
-  const handlePlayToggle = () => {
-    setupWebAudio();
-    if (audioContextRef.current?.state === 'suspended') {
-      audioContextRef.current.resume();
-    }
-    announce(!isPlaying ? `Playing ${activeTrack.title} soundscape.` : `Paused ${activeTrack.title} soundscape.`);
-    onTogglePlay();
+  const handleToggleAccess = () => {
+    const next = activeDrawer === 'access' ? null : 'access';
+    setActiveDrawer(next);
+    triggerEarcon('tab');
+    announce(next ? 'Opened Accessibility Settings panel.' : 'Closed Accessibility Settings panel.');
   };
-
-  const handleToggleMute = () => {
-    toggleMute();
-    announce(isMuted ? 'Audio soundscape unmuted.' : 'Audio soundscape muted.');
-  };
-
-  // Sync audio tag with isPlaying state
-  useEffect(() => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.play().catch(() => {});
-    } else {
-      audioRef.current.pause();
-    }
-  }, [isPlaying]);
-
-  // Audio Time Update
-  const handleTimeUpdate = () => {
-    if (audioRef.current) {
-      setCurrentTime(audioRef.current.currentTime);
-      if (audioRef.current.duration && !isNaN(audioRef.current.duration)) {
-        setDuration(audioRef.current.duration);
-      }
-    }
-  };
-
-  // Timeline scrub
-  const handleScrub = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = Number(e.target.value);
-    setCurrentTime(val);
-    if (audioRef.current) {
-      audioRef.current.currentTime = val;
-    }
-  };
-
-  // Real Audio-Reactive Radial & Waveform Visualizer
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let animId: number;
-    let idlePhase = 0;
-    const freqData = new Uint8Array(64);
-
-    const handleResize = () => {
-      const rect = canvas.getBoundingClientRect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      ctx.scale(dpr, dpr);
-    };
-
-    handleResize();
-    window.addEventListener('resize', handleResize);
-
-    const isAudible = isPlaying && !isMuted;
-
-    const render = () => {
-      const rect = canvas.getBoundingClientRect();
-      const width = rect.width;
-      const height = rect.height;
-      ctx.clearRect(0, 0, width, height);
-
-      const centerX = width * 0.28;
-      const centerY = height * 0.5;
-      const baseRadius = Math.min(width, height) * 0.26;
-
-      // Read real audio frequency data if analyser exists and audio is actively playing
-      if (analyserRef.current && isAudible) {
-        analyserRef.current.getByteFrequencyData(freqData);
-      } else {
-        // Paused / Muted: Truthful zero data, calm resting state
-        freqData.fill(0);
-      }
-
-      // ─────────────────────────────────────────────────────────────
-      // 1. RADIAL ORBITAL FREQUENCY SPOKES
-      // ─────────────────────────────────────────────────────────────
-      const spokes = 48;
-      const angleStep = (Math.PI * 2) / spokes;
-
-      for (let i = 0; i < spokes; i++) {
-        const angle = i * angleStep + (isAudible ? idlePhase * 0.15 : 0);
-        const freqVal = freqData[i % freqData.length] || 0;
-        const spokeLen = isAudible ? (freqVal / 255) * (baseRadius * 0.95) : 2;
-
-        const x1 = centerX + Math.cos(angle) * baseRadius;
-        const y1 = centerY + Math.sin(angle) * baseRadius;
-        const x2 = centerX + Math.cos(angle) * (baseRadius + spokeLen);
-        const y2 = centerY + Math.sin(angle) * (baseRadius + spokeLen);
-
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.strokeStyle = isAudible ? activeTrack.color.accent : 'rgba(255, 255, 255, 0.2)';
-        ctx.lineWidth = isAudible ? 1.8 : 1.0;
-        ctx.shadowColor = activeTrack.color.glow;
-        ctx.shadowBlur = isAudible ? 10 : 0;
-        ctx.stroke();
-      }
-
-      // Center core planetary ring
-      const avgVol = isAudible ? freqData.reduce((a, b) => a + b, 0) / freqData.length : 0;
-      const corePulse = (avgVol / 255) * 6;
-
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, baseRadius * 0.78 + corePulse, 0, Math.PI * 2);
-      ctx.strokeStyle = isAudible ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 255, 255, 0.18)';
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
-
-      // ─────────────────────────────────────────────────────────────
-      // 2. LINEAR WAVEFORM STREAM (Right Portion of Canvas)
-      // ─────────────────────────────────────────────────────────────
-      const waveStartX = width * 0.56;
-      const waveWidth = width * 0.42;
-      const waveMidY = height * 0.5;
-      const waveSteps = 40;
-
-      ctx.beginPath();
-      for (let i = 0; i <= waveSteps; i++) {
-        const wx = waveStartX + (i / waveSteps) * waveWidth;
-        const sampleIdx = Math.floor((i / waveSteps) * 32);
-        const sampleVal = (freqData[sampleIdx] || 0) / 255;
-        const wy = isAudible
-          ? waveMidY + Math.sin(idlePhase * 2 + i * 0.35) * (sampleVal * (height * 0.32))
-          : waveMidY; // Flat resting baseline when paused/muted
-
-        if (i === 0) {
-          ctx.moveTo(wx, wy);
-        } else {
-          ctx.lineTo(wx, wy);
-        }
-      }
-
-      ctx.strokeStyle = isAudible ? activeTrack.color.accent : 'rgba(255, 255, 255, 0.25)';
-      ctx.lineWidth = isAudible ? 2 : 1.2;
-      ctx.shadowColor = activeTrack.color.glow;
-      ctx.shadowBlur = isAudible ? 8 : 0;
-      ctx.stroke();
-
-      if (isAudible) {
-        idlePhase += 0.05;
-      }
-      animId = requestAnimationFrame(render);
-    };
-
-    render();
-
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [activeTrack, isPlaying, isMuted]);
 
   // Ping Telemetry API
   const handlePingTelemetry = async () => {
     setHealthStatus('checking');
+    triggerDetent();
     try {
       const res = await fetch('/api/health');
       if (res.ok) {
         setHealthStatus('healthy');
+        announce('NASA telemetry diagnostic bus healthy.');
         setTimeout(() => setHealthStatus('idle'), 3500);
       } else {
         setHealthStatus('idle');
@@ -433,8 +340,15 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
     }
   };
 
-  // Format time mm:ss
+  // Test tactile pulse
+  const handleTestTactilePulse = () => {
+    triggerDetent();
+    haptics.triggerHaptic('pulse');
+    announce('Emitted 136.10 Hz sub-bass tactile vibration test pulse.');
+  };
+
   const formatTime = (sec: number) => {
+    if (isNaN(sec) || sec < 0) return '0:00';
     const mins = Math.floor(sec / 60);
     const secs = Math.floor(sec % 60);
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
@@ -461,40 +375,51 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
       />
 
       {/* Floating Apple Music Frosted-Glass Studio Deck */}
-      <div className="apple-glass relative overflow-hidden rounded-3xl border border-white/10 p-6 shadow-2xl backdrop-blur-2xl sm:p-8 md:p-10">
-        <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
-          {/* Left Column: Visualizer Canvas */}
-          <div className="lg:col-span-5">
-            <div className="relative h-44 w-full overflow-hidden rounded-2xl border border-white/[0.08] bg-black/60 p-2 backdrop-blur-md">
-              <canvas ref={canvasRef} className="h-full w-full" />
-              <div className="absolute bottom-2 left-4 font-mono text-[9px] uppercase tracking-widest text-slate-400">
-                Studio Analyser • {activeTrack.frequency}
-                {customMixActive && (
-                  <span className="ml-2 font-bold text-sky-400">• Custom Mix</span>
-                )}
-              </div>
-            </div>
+      <div className="apple-glass relative overflow-hidden rounded-3xl border border-white/10 p-6 shadow-2xl backdrop-blur-2xl sm:p-8 md:p-10 transition-all duration-300">
+        <div className="grid grid-cols-1 items-stretch gap-8 lg:grid-cols-12">
+          {/* ─────────────────────────────────────────────────────────────
+              LEFT COLUMN: LARGE CONTINUOUSLY ANIMATED VISUALIZER
+              ───────────────────────────────────────────────────────────── */}
+          <div className="lg:col-span-5 flex flex-col">
+            <ConsoleVisualizer
+              activeTrack={activeTrack}
+              isPlaying={isPlaying}
+              isMuted={isMuted}
+              getFrequencyData={audioGraph.getFrequencyData}
+              customMixActive={customMixActive}
+              spaceX={spaceX}
+              spaceY={spaceY}
+            />
           </div>
 
-          {/* Right Column: Track Details & Equalizer Sliders */}
+          {/* ─────────────────────────────────────────────────────────────
+              RIGHT COLUMN: TRANSPORT, EQ, AND EXPANDABLE PANELS
+              ───────────────────────────────────────────────────────────── */}
           <div className="flex flex-col justify-between gap-6 lg:col-span-7">
-            {/* Header: Title with smooth text swap */}
+            {/* Header: Track title, Play button & Action Pill Cluster */}
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
+              <div className="min-w-0 flex-1">
                 <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.25em] text-sky-400 sm:text-xs">
                   {activeTrack.category}
                 </span>
-                <h4 className="special-font font-zentry mt-1 text-2xl font-black uppercase text-white transition-all duration-300 sm:text-3xl md:text-4xl">
+                <h4
+                  title={activeTrack.title}
+                  className="special-font font-zentry mt-1 text-2xl font-black uppercase text-white tracking-tight sm:text-3xl md:text-4xl line-clamp-1 drop-shadow-md"
+                >
                   {activeTrack.title}
                 </h4>
               </div>
 
-              {/* Master Play Pill & Control Cluster */}
-              <div className="flex items-center gap-2.5">
+              {/* Master Play Pill & Drawer Action Cluster */}
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handlePlayToggle}
-                  aria-label={isPlaying ? `Pause soundscape: ${activeTrack.title}` : `Play soundscape: ${activeTrack.title}`}
+                  aria-label={
+                    isPlaying
+                      ? `Pause soundscape: ${activeTrack.title}`
+                      : `Play soundscape: ${activeTrack.title}`
+                  }
                   className="group relative inline-flex items-center gap-2.5 rounded-full border border-white/20 bg-white/10 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-lg backdrop-blur-md transition-all hover:border-sky-400/60 hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 active:scale-95"
                 >
                   {isPlaying ? (
@@ -516,35 +441,71 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
                   ref={mixerBtnRef}
                   type="button"
                   onClick={handleToggleMixer}
-                  aria-expanded={showMixer}
+                  aria-expanded={activeDrawer === 'mixer'}
                   aria-controls="constituent-mixer-panel"
                   aria-label="Toggle Constituent Layer Synthesizer Mixer"
                   className={`inline-flex size-10 items-center justify-center rounded-full border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 active:scale-95 ${
-                    showMixer || customMixActive
+                    activeDrawer === 'mixer' || customMixActive
                       ? 'border-sky-400 bg-sky-500/20 text-sky-300 shadow-[0_0_12px_rgba(56,189,248,0.3)]'
                       : 'border-white/15 bg-black/40 text-slate-300 hover:border-sky-400/60 hover:text-white'
                   }`}
                   title="Constituent Harmonic Mixer"
                 >
-                  <Layers className="size-4" />
+                  <Sliders className="size-4" />
+                </button>
+
+                {/* Toggle Spatial 2D Audio */}
+                <button
+                  ref={spaceBtnRef}
+                  type="button"
+                  onClick={handleToggleSpace}
+                  aria-expanded={activeDrawer === 'space'}
+                  aria-controls="space-audio-panel"
+                  aria-label="Toggle Spatial Audio and Planetary Field"
+                  className={`inline-flex size-10 items-center justify-center rounded-full border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 active:scale-95 ${
+                    activeDrawer === 'space'
+                      ? 'border-sky-400 bg-sky-500/20 text-sky-300 shadow-[0_0_12px_rgba(56,189,248,0.3)]'
+                      : 'border-white/15 bg-black/40 text-slate-300 hover:border-sky-400/60 hover:text-white'
+                  }`}
+                  title="Spatial 2D Earth Field"
+                >
+                  <Compass className="size-4" />
                 </button>
 
                 {/* Science Legend & Accessibility */}
                 <button
                   ref={accessibilityBtnRef}
                   type="button"
-                  onClick={handleToggleAccessibility}
-                  aria-expanded={showAccessibility}
+                  onClick={handleToggleScience}
+                  aria-expanded={activeDrawer === 'science'}
                   aria-controls="science-legend-panel"
                   aria-label="Toggle Scientific Interpretation & Audio Legend"
                   className={`inline-flex size-10 items-center justify-center rounded-full border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 active:scale-95 ${
-                    showAccessibility
+                    activeDrawer === 'science'
                       ? 'border-amber-400 bg-amber-500/20 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
                       : 'border-white/15 bg-black/40 text-slate-300 hover:border-amber-400/60 hover:text-white'
                   }`}
-                  title="Science Legend & Accessibility"
+                  title="Science Legend & Audio Narrative"
                 >
                   <Info className="size-4" />
+                </button>
+
+                {/* Access & Sensory Settings */}
+                <button
+                  ref={accessBtnRef}
+                  type="button"
+                  onClick={handleToggleAccess}
+                  aria-expanded={activeDrawer === 'access'}
+                  aria-controls="access-settings-panel"
+                  aria-label="Toggle Accessibility & Sensory Settings"
+                  className={`inline-flex size-10 items-center justify-center rounded-full border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 active:scale-95 ${
+                    activeDrawer === 'access'
+                      ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.3)]'
+                      : 'border-white/15 bg-black/40 text-slate-300 hover:border-emerald-400/60 hover:text-white'
+                  }`}
+                  title="Accessibility & Sensory Feeds"
+                >
+                  <Accessibility className="size-4" />
                 </button>
 
                 {/* Diagnostic Telemetry Health Ping */}
@@ -575,306 +536,182 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
                 min="0"
                 max={duration || 180}
                 value={currentTime}
-                onChange={handleScrub}
+                onChange={(e) => handleScrub(Number(e.target.value))}
                 aria-label="Audio timeline position"
                 aria-valuenow={Math.round(currentTime)}
                 aria-valuemin={0}
                 aria-valuemax={Math.round(duration || 180)}
                 aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
-                className="h-1 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-sky-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-sky-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
               />
               <div className="flex justify-between font-mono text-[10px] text-slate-500">
                 <span>{formatTime(currentTime)}</span>
-                <span>{formatTime(duration)}</span>
+                <span className="text-slate-400">
+                  {duration ? formatTime(duration) : 'LIVE STREAM'}
+                </span>
               </div>
             </div>
 
-            {/* 3-Band Equalizer Sliders (Low / Mid / High) */}
-            <div className="grid grid-cols-1 gap-4 font-mono text-xs sm:grid-cols-3">
-              <div>
-                <div className="flex justify-between text-[11px] text-slate-400">
-                  <span>LOW / BASS</span>
-                  <span className="text-white">{eqBass}%</span>
+            {/* 3-Band Equalizer Sliders (Low / Mid / High) - Always accessible */}
+            <div className="rounded-2xl border border-white/10 bg-black/30 p-3.5 backdrop-blur-md">
+              <div className="flex items-center justify-between border-b border-white/[0.08] pb-1.5 font-mono text-xs">
+                <div className="flex items-center gap-1.5 text-slate-300">
+                  <Radio className="size-3.5 text-sky-400" />
+                  <span className="font-semibold uppercase tracking-wider text-[11px]">
+                    Live Acoustic Equalizer
+                  </span>
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={eqBass}
-                  onChange={(e) => setEqBass(Number(e.target.value))}
-                  aria-label="Bass equalizer"
-                  aria-valuenow={eqBass}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuetext={`${eqBass} percent bass`}
-                  className="mt-1 h-1 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-sky-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-                />
+                <span className="font-mono text-[9px] text-sky-400 uppercase tracking-wider">
+                  Real-Time Web Audio DSP
+                </span>
               </div>
 
-              <div>
-                <div className="flex justify-between text-[11px] text-slate-400">
-                  <span>MID RESONANCE</span>
-                  <span className="text-white">{eqMid}%</span>
+              <div className="mt-2.5 grid grid-cols-1 gap-3 font-mono text-xs sm:grid-cols-3">
+                <div>
+                  <div className="flex justify-between text-[11px] text-slate-400">
+                    <span>LOW / BASS</span>
+                    <span className="font-bold text-white">{eqBass}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={eqBass}
+                    onChange={(e) => {
+                      setEqBass(Number(e.target.value));
+                      triggerDetent();
+                    }}
+                    aria-label="Bass equalizer"
+                    aria-valuenow={eqBass}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuetext={`${eqBass} percent bass`}
+                    className="mt-1 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-sky-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                  />
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={eqMid}
-                  onChange={(e) => setEqMid(Number(e.target.value))}
-                  aria-label="Midrange resonance equalizer"
-                  aria-valuenow={eqMid}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuetext={`${eqMid} percent midrange`}
-                  className="mt-1 h-1 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-sky-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-                />
-              </div>
 
-              <div>
-                <div className="flex justify-between text-[11px] text-slate-400">
-                  <span>HIGH SHIMMER</span>
-                  <span className="text-white">{eqHigh}%</span>
+                <div>
+                  <div className="flex justify-between text-[11px] text-slate-400">
+                    <span>MID RESONANCE</span>
+                    <span className="font-bold text-white">{eqMid}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={eqMid}
+                    onChange={(e) => {
+                      setEqMid(Number(e.target.value));
+                      triggerDetent();
+                    }}
+                    aria-label="Midrange resonance equalizer"
+                    aria-valuenow={eqMid}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuetext={`${eqMid} percent midrange`}
+                    className="mt-1 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-sky-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                  />
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={eqHigh}
-                  onChange={(e) => setEqHigh(Number(e.target.value))}
-                  aria-label="High shimmer equalizer"
-                  aria-valuenow={eqHigh}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuetext={`${eqHigh} percent treble shimmer`}
-                  className="mt-1 h-1 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-sky-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-                />
+
+                <div>
+                  <div className="flex justify-between text-[11px] text-slate-400">
+                    <span>HIGH SHIMMER</span>
+                    <span className="font-bold text-white">{eqHigh}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={eqHigh}
+                    onChange={(e) => {
+                      setEqHigh(Number(e.target.value));
+                      triggerDetent();
+                    }}
+                    aria-label="High shimmer equalizer"
+                    aria-valuenow={eqHigh}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuetext={`${eqHigh} percent treble shimmer`}
+                    className="mt-1 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-sky-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Expandable Atmospheric Constituent Mixer (Phase 3B) */}
-            {showMixer && (
-              <div
-                id="constituent-mixer-panel"
-                role="region"
-                aria-label="Constituent Layer Synthesizer"
-                className="rounded-2xl border border-sky-400/20 bg-sky-950/20 p-4 backdrop-blur-md"
-              >
-                <div className="flex items-center justify-between border-b border-white/[0.08] pb-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="size-3.5 text-sky-400" />
-                    <span className="font-mono font-semibold uppercase tracking-wider text-sky-200">
-                      Constituent Layer Synthesizer
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-[10px] text-slate-400">
-                      Pure Mathematical DSP
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowMixer(false);
-                        mixerBtnRef.current?.focus();
-                        announce('Closed Constituent Layer Synthesizer panel.');
-                      }}
-                      aria-label="Close Constituent Layer Synthesizer panel"
-                      className="inline-flex size-6 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-                    >
-                      <X className="size-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4 font-mono text-[11px]">
-                  <div>
-                    <div className="flex justify-between text-slate-400">
-                      <span>DUST</span>
-                      <span className="text-amber-300">{dustVolume}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={dustVolume}
-                      onChange={(e) => setDustVolume(Number(e.target.value))}
-                      aria-label="Dust layer volume"
-                      aria-valuenow={dustVolume}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuetext={`${dustVolume} percent dust layer`}
-                      className="mt-1 h-1 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
-                    />
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-slate-400">
-                      <span>SEA SALT</span>
-                      <span className="text-cyan-300">{saltVolume}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={saltVolume}
-                      onChange={(e) => setSaltVolume(Number(e.target.value))}
-                      aria-label="Sea salt layer volume"
-                      aria-valuenow={saltVolume}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuetext={`${saltVolume} percent sea salt layer`}
-                      className="mt-1 h-1 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-cyan-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
-                    />
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-slate-400">
-                      <span>SMOKE</span>
-                      <span className="text-emerald-300">{smokeVolume}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={smokeVolume}
-                      onChange={(e) => setSmokeVolume(Number(e.target.value))}
-                      aria-label="Smoke layer volume"
-                      aria-valuenow={smokeVolume}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuetext={`${smokeVolume} percent smoke layer`}
-                      className="mt-1 h-1 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-emerald-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-                    />
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-slate-400">
-                      <span>SULFATE</span>
-                      <span className="text-slate-200">{sulfateVolume}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={sulfateVolume}
-                      onChange={(e) => setSulfateVolume(Number(e.target.value))}
-                      aria-label="Sulfate layer volume"
-                      aria-valuenow={sulfateVolume}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuetext={`${sulfateVolume} percent sulfate layer`}
-                      className="mt-1 h-1 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-3 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={handleSynthesizeMix}
-                    disabled={isSynthesizing}
-                    aria-label="Synthesize Custom Cadence 16-Bit WAV"
-                    className="inline-flex items-center gap-2 rounded-full border border-sky-400/40 bg-sky-500/20 px-4 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-sky-200 transition-colors hover:bg-sky-500/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 active:scale-95 disabled:opacity-50"
-                  >
-                    {isSynthesizing ? (
-                      <>
-                        <RefreshCw className="size-3 animate-spin text-sky-300" />
-                        <span>Synthesizing 16-Bit WAV...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="size-3 text-sky-300" />
-                        <span>Synthesize Custom Cadence</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
+            {/* ─────────────────────────────────────────────────────────────
+                EXPANDABLE DRAWER PANELS (Mixer / Space / Science / Access)
+                ───────────────────────────────────────────────────────────── */}
+            {activeDrawer === 'mixer' && (
+              <MixerPanel
+                activeTrack={activeTrack}
+                setEqBass={setEqBass}
+                setEqMid={setEqMid}
+                setEqHigh={setEqHigh}
+                dustVolume={dustVolume}
+                setDustVolume={setDustVolume}
+                saltVolume={saltVolume}
+                setSaltVolume={setSaltVolume}
+                smokeVolume={smokeVolume}
+                setSmokeVolume={setSmokeVolume}
+                sulfateVolume={sulfateVolume}
+                setSulfateVolume={setSulfateVolume}
+                onSynthesizeMix={handleSynthesizeMix}
+                isSynthesizing={isSynthesizing}
+                onClose={() => {
+                  setActiveDrawer(null);
+                  mixerBtnRef.current?.focus();
+                  announce('Closed Constituent Layer Synthesizer panel.');
+                }}
+                onApplyPreset={(p) => announce(`Applied ${p} acoustic preset.`)}
+                onDetentTick={triggerDetent}
+              />
             )}
 
-            {/* Expandable Science Legend & Accessibility Drawer (Phase 5) */}
-            {showAccessibility && (
-              <div
-                id="science-legend-panel"
-                role="region"
-                aria-label="Scientific Interpretation and Audio Legend"
-                className="rounded-2xl border border-amber-400/20 bg-amber-950/20 p-4 text-xs backdrop-blur-md"
-              >
-                <div className="flex items-center justify-between border-b border-white/[0.08] pb-2">
-                  <div className="flex items-center gap-2 font-mono font-semibold uppercase tracking-wider text-amber-300">
-                    <Info className="size-3.5 text-amber-400" />
-                    <span>Scientific Interpretation & Audio Legend</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAccessibility(false);
-                      accessibilityBtnRef.current?.focus();
-                      announce('Closed Scientific Interpretation and Audio Legend panel.');
-                    }}
-                    aria-label="Close Scientific Interpretation and Audio Legend panel"
-                    className="inline-flex size-6 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                </div>
+            {activeDrawer === 'space' && (
+              <SpacePanel
+                activeTrack={activeTrack}
+                spaceX={spaceX}
+                setSpaceX={setSpaceX}
+                spaceY={spaceY}
+                setSpaceY={setSpaceY}
+                atmosphereReverb={atmosphereReverb}
+                setAtmosphereReverb={setAtmosphereReverb}
+                onDetentTick={triggerDetent}
+                onAnnounce={announce}
+              />
+            )}
 
-                <div className="mt-2.5 space-y-3 text-slate-300">
-                  <p className="leading-relaxed">
-                    {accessibilityData?.plain_language_summary ||
-                      activeTrack.description}
-                  </p>
+            {activeDrawer === 'science' && (
+              <SciencePanel
+                activeTrack={activeTrack}
+                accessibilityData={accessibilityData}
+                onClose={() => {
+                  setActiveDrawer(null);
+                  accessibilityBtnRef.current?.focus();
+                  announce('Closed Scientific Interpretation and Audio Legend panel.');
+                }}
+                isSpeaking={speech.isSpeaking}
+                onToggleSpeech={speech.toggleSpeak}
+              />
+            )}
 
-                  {/* Structured Variable-to-Sound Mappings */}
-                  {accessibilityData?.screen_reader_legend && accessibilityData.screen_reader_legend.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-amber-300">
-                        Variable-to-Sound Scientific Legend
-                      </div>
-                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                        {accessibilityData.screen_reader_legend.map((item, idx) => (
-                          <div
-                            key={idx}
-                            className="rounded-xl border border-amber-400/20 bg-black/40 p-3 text-[11px] transition-colors hover:border-amber-400/40"
-                          >
-                            <div className="flex items-center justify-between font-mono font-bold text-amber-200">
-                              <span>{item.layer_name || item.scientific_variable}</span>
-                              <span className="text-[10px] text-amber-400/80">{item.pitch_range}</span>
-                            </div>
-                            <div className="mt-1 font-mono text-[10px] text-slate-300">
-                              <span className="font-semibold text-amber-300">Audio Mapping: </span>
-                              {item.audio_characteristic} ({item.synthesis_timbre})
-                            </div>
-                            {item.scientific_reasoning && (
-                              <div className="mt-1.5 text-[10px] leading-relaxed text-slate-400">
-                                {item.scientific_reasoning}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Acoustic Narrative Guide */}
-                  {accessibilityData?.audio_guide && (
-                    <div className="rounded-lg bg-black/40 p-2.5 font-mono text-[11px] text-amber-200/90">
-                      <span className="font-semibold text-amber-300">Acoustic Guide: </span>
-                      {accessibilityData.audio_guide}
-                    </div>
-                  )}
-
-                  {/* Honest Tactile Transducer Guidance */}
-                  {accessibilityData?.tactile_equivalent_guidance && (
-                    <div className="rounded-xl border border-white/[0.08] bg-black/30 p-2.5 font-mono text-[10px] text-slate-400">
-                      <div className="flex items-center gap-1.5 font-semibold text-slate-300">
-                        <Volume2 className="size-3 text-amber-400" />
-                        <span>Tactile Transducer / Bass Shaker Guidance:</span>
-                      </div>
-                      <p className="mt-1 leading-relaxed">
-                        {accessibilityData.tactile_equivalent_guidance}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
+            {activeDrawer === 'access' && (
+              <AccessPanel
+                activeTrack={activeTrack}
+                earconsSetting={earconsSetting}
+                setEarconsSetting={setEarconsSetting}
+                hapticsEnabled={haptics.isEnabled}
+                setHapticsEnabled={haptics.setIsEnabled}
+                hapticsSupported={haptics.isSupported}
+                tactileEnabled={tactileEnabled}
+                setTactileEnabled={setTactileEnabled}
+                tactileCutoff={tactileCutoff}
+                setTactileCutoff={setTactileCutoff}
+                onTestTactilePulse={handleTestTactilePulse}
+                getStreamDestination={audioGraph.getStreamDestination}
+                onAnnounce={announce}
+                onDetentTick={triggerDetent}
+              />
             )}
 
             {/* Footer Status Bar */}

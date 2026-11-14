@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { RotateCcw, Compass, Crosshair } from 'lucide-react';
+import { RotateCcw, Compass } from 'lucide-react';
 import { OrbitControls } from '@react-three/drei';
 import type { CompareResponse } from '@nasa-experience/contracts';
 import { CanvasContainer } from './canvas-container';
@@ -9,10 +9,7 @@ import { NasaEarthModel } from './nasa-earth-model';
 import { EarthLighting } from './earth-lighting';
 import { EarthEnvironment } from './earth-environment';
 import { LocationIntelligencePanel } from './location-intelligence-panel';
-import {
-  type GeographicLocationIntelligence,
-  NASA_ANCHOR_STATIONS,
-} from './environmental-data';
+import type { GeographicLocationIntelligence } from './environmental-data';
 import { environmentalAudioEngine } from './environmental-audio-engine';
 
 type OrbitControlsHandle = React.ElementRef<typeof OrbitControls>;
@@ -113,8 +110,8 @@ export function GlobeViewer({
         selectedPhase === 'a'
           ? 'tab-period-2012'
           : selectedPhase === 'b'
-          ? 'tab-period-2023'
-          : 'tab-period-diff'
+            ? 'tab-period-2023'
+            : 'tab-period-diff'
       }
       className={className}
       aria-label={`Official NASA 3D Earth displaying Black Marble ${currentObservationYear} Observation`}
@@ -165,9 +162,9 @@ export function GlobeViewer({
               src={
                 selectedPhase === 'a'
                   ? comparisonData?.image_a_url ||
-                    '/api/datasets/night-lights/image?period=2012'
+                  '/api/datasets/night-lights/image?period=2012'
                   : comparisonData?.image_b_url ||
-                    '/api/datasets/night-lights/image?period=2023'
+                  '/api/datasets/night-lights/image?period=2023'
               }
               alt={
                 selectedPhase === 'a'
@@ -254,11 +251,10 @@ export function GlobeViewer({
               type="button"
               onClick={() => setDiffActiveYear('2012')}
               aria-label="View 2012 Observation in Dual Phase"
-              className={`rounded-full px-2.5 py-1 font-mono text-[10px] uppercase transition-all ${
-                diffActiveYear === '2012'
-                  ? 'bg-sky-500/30 text-sky-200 border border-sky-400/50 shadow-[0_0_8px_rgba(56,189,248,0.3)]'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+              className={`rounded-full px-2.5 py-1 font-mono text-[10px] uppercase transition-all ${diffActiveYear === '2012'
+                ? 'bg-sky-500/30 text-sky-200 border border-sky-400/50 shadow-[0_0_8px_rgba(56,189,248,0.3)]'
+                : 'text-slate-400 hover:text-white'
+                }`}
             >
               2012
             </button>
@@ -266,11 +262,10 @@ export function GlobeViewer({
               type="button"
               onClick={() => setDiffActiveYear('2023')}
               aria-label="View 2023 Observation in Dual Phase"
-              className={`rounded-full px-2.5 py-1 font-mono text-[10px] uppercase transition-all ${
-                diffActiveYear === '2023'
-                  ? 'bg-amber-500/30 text-amber-200 border border-amber-400/50 shadow-[0_0_8px_rgba(251,191,36,0.3)]'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+              className={`rounded-full px-2.5 py-1 font-mono text-[10px] uppercase transition-all ${diffActiveYear === '2023'
+                ? 'bg-amber-500/30 text-amber-200 border border-amber-400/50 shadow-[0_0_8px_rgba(251,191,36,0.3)]'
+                : 'text-slate-400 hover:text-white'
+                }`}
             >
               2023
             </button>
@@ -288,53 +283,22 @@ export function GlobeViewer({
         </button>
       </div>
 
-      {/* 4. Bottom-Left: Quick Tactical Target Stations (NASA Key Studies) */}
-      <div className="absolute bottom-3.5 left-3.5 hidden md:flex items-center gap-1.5 rounded-full border border-white/10 bg-black/75 p-1 backdrop-blur-md z-20">
-        <Crosshair className="size-3 ml-1.5 text-cyan-400" />
-        <span className="font-mono text-[9px] uppercase tracking-wider text-slate-400 mr-1">
-          Tactical Targets:
-        </span>
-        {NASA_ANCHOR_STATIONS.slice(0, 5).map((station) => (
-          <button
-            key={station.id}
-            type="button"
-            onClick={() => setSelectedLocation(station)}
-            aria-label={`Target ${station.name}`}
-            className={`rounded-full px-2.5 py-0.5 font-mono text-[9px] uppercase transition-all ${
-              selectedLocation?.id === station.id
-                ? 'bg-cyan-500/30 text-cyan-200 border border-cyan-400/50 shadow-[0_0_8px_rgba(56,189,248,0.3)]'
-                : 'text-slate-300 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            {station.id === 'amazon-basin'
-              ? 'Amazon'
-              : station.id === 'arctic-svalbard'
-              ? 'Arctic'
-              : station.id === 'india-indo-gangetic'
-              ? 'India'
-              : station.id === 'california-sierra'
-              ? 'California'
-              : 'Sahara'}
-          </button>
-        ))}
-      </div>
-
-      {/* 5. Bottom-Center: Subtle User Navigation Hint */}
-      <div className="pointer-events-none absolute bottom-3.5 left-1/2 -translate-x-1/2 hidden xl:flex items-center gap-2 rounded-full border border-white/10 bg-black/65 px-3.5 py-1 backdrop-blur-md">
+      {/* 4. Bottom-Center: Subtle User Navigation Hint */}
+      <div className="pointer-events-none absolute bottom-3.5 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full border border-white/10 bg-black/65 px-3.5 py-1 backdrop-blur-md">
         <Compass className="size-3 text-cyan-400" />
         <span className="font-mono text-[10px] uppercase tracking-wider text-slate-300">
           Click Any Location to Sonify • Drag to Orbit
         </span>
       </div>
 
-      {/* 6. Authentic NASA Attribution Watermark */}
+      {/* 5. Authentic NASA Attribution Watermark */}
       <div className="pointer-events-none absolute bottom-3.5 right-3.5 hidden sm:block rounded-full border border-white/10 bg-black/75 px-3 py-1 backdrop-blur-md">
         <span className="font-mono text-[9px] uppercase tracking-wider text-slate-400">
           NASA SVS #5313 • VTAD GLTF
         </span>
       </div>
 
-      {/* 7. Floating Tactical Location Intelligence Panel */}
+      {/* 6. Floating Tactical Location Intelligence Panel */}
       {selectedLocation && (
         <LocationIntelligencePanel
           location={selectedLocation}

@@ -228,4 +228,92 @@ describe('AudioDockConsole Accessibility & Science Communication', () => {
       );
     });
   });
+
+  it('opens 2D Spatial Audio panel and adjusts atmospheric reverb', () => {
+    render(
+      <AudioDockConsole
+        activeTrack={mockTrack}
+        isPlaying={false}
+        onTogglePlay={vi.fn()}
+      />
+    );
+
+    const spaceBtn = screen.getByRole('button', {
+      name: /toggle spatial audio and planetary field/i,
+    });
+    expect(spaceBtn).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(spaceBtn);
+    expect(spaceBtn).toHaveAttribute('aria-expanded', 'true');
+
+    // 2D Spatial Position slider pad
+    const spatialPad = screen.getByRole('slider', {
+      name: /2d planetary spatial position/i,
+    });
+    expect(spatialPad).toBeInTheDocument();
+
+    // Atmospheric reverb slider
+    const reverbSlider = screen.getByRole('slider', {
+      name: /atmospheric reverb diffusion/i,
+    });
+    expect(reverbSlider).toBeInTheDocument();
+    expect(reverbSlider).toHaveAttribute('aria-valuenow', '20');
+
+    // Adjust reverb
+    fireEvent.change(reverbSlider, { target: { value: '65' } });
+    expect(reverbSlider).toHaveAttribute('aria-valuenow', '65');
+  });
+
+  it('opens Accessibility & Sensory panel and toggles tactile bass shaker', () => {
+    render(
+      <AudioDockConsole
+        activeTrack={mockTrack}
+        isPlaying={false}
+        onTogglePlay={vi.fn()}
+      />
+    );
+
+    const accessBtn = screen.getByRole('button', {
+      name: /toggle accessibility & sensory settings/i,
+    });
+    expect(accessBtn).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(accessBtn);
+    expect(accessBtn).toHaveAttribute('aria-expanded', 'true');
+
+    // Verify Earcon options
+    expect(screen.getByRole('button', { name: /^full$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^minimal$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^off$/i })).toBeInTheDocument();
+
+    // Verify Tactile Bass Shaker toggle
+    const tactileToggle = screen.getByRole('button', { name: /muted/i });
+    fireEvent.click(tactileToggle);
+    expect(screen.getByRole('button', { name: /active/i })).toBeInTheDocument();
+  });
+
+  it('applies acoustic sound presets in mixer', () => {
+    render(
+      <AudioDockConsole
+        activeTrack={mockTrack}
+        isPlaying={false}
+        onTogglePlay={vi.fn()}
+      />
+    );
+
+    // Open mixer
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /toggle constituent layer synthesizer mixer/i,
+      })
+    );
+
+    // Click "Deep Ocean" preset
+    const deepOceanPreset = screen.getByRole('button', { name: /deep ocean/i });
+    fireEvent.click(deepOceanPreset);
+
+    // Verify live EQ sliders updated
+    const bass = screen.getByRole('slider', { name: /bass equalizer/i });
+    expect(bass).toHaveAttribute('aria-valuenow', '85');
+  });
 });
