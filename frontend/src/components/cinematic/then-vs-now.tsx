@@ -5,6 +5,7 @@ import { Play, Pause, History, Sparkles, Volume2, ArrowRight, ShieldCheck, Exter
 import { sonificationService } from '@/services/api';
 import type { CompareResponse } from '@nasa-experience/contracts';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
+import { GlobeViewer } from '@/experiences/graphics/three';
 
 export function ThenVsNow() {
   const [selectedPhase, setSelectedPhase] = useState<'a' | 'b' | 'diff'>('diff');
@@ -206,87 +207,11 @@ export function ThenVsNow() {
           </button>
         </div>
 
-        {/* NASA Observation Satellite Visualizer Frame */}
-        <div
-          id="observation-visualizer-panel"
-          role="tabpanel"
-          aria-labelledby={
-            selectedPhase === 'a'
-              ? 'tab-period-2012'
-              : selectedPhase === 'b'
-              ? 'tab-period-2023'
-              : 'tab-period-diff'
-          }
-          className="relative mt-8 h-64 sm:h-80 w-full overflow-hidden rounded-2xl border border-white/10 bg-black/60 shadow-xl"
-        >
-          {selectedPhase === 'diff' ? (
-            <div className="grid h-full w-full grid-cols-2 gap-1 overflow-hidden">
-              {/* 2012 Observation */}
-              <div className="relative h-full w-full overflow-hidden border-r border-white/10">
-                <img
-                  src={comparisonData?.image_a_url || '/api/datasets/night-lights/image?period=2012'}
-                  alt="NASA 2012 Night Lights Observation Baseline"
-                  loading="lazy"
-                  decoding="async"
-                  className="h-full w-full object-cover"
-                />
-                <div className="absolute bottom-3 left-3 rounded-full border border-sky-400/40 bg-black/75 px-3 py-1 backdrop-blur-md">
-                  <span className="font-mono text-[10px] font-bold text-sky-200">
-                    {comparisonData?.observation_date_a || '2012 Annual Composite'}
-                  </span>
-                </div>
-              </div>
-              {/* 2023 Observation */}
-              <div className="relative h-full w-full overflow-hidden">
-                <img
-                  src={comparisonData?.image_b_url || '/api/datasets/night-lights/image?period=2023'}
-                  alt="NASA 2023 Night Lights Observation Modern State"
-                  loading="lazy"
-                  decoding="async"
-                  className="h-full w-full object-cover"
-                />
-                <div className="absolute bottom-3 right-3 rounded-full border border-amber-400/40 bg-black/75 px-3 py-1 backdrop-blur-md">
-                  <span className="font-mono text-[10px] font-bold text-amber-200">
-                    {comparisonData?.observation_date_b || '2023 Annual Composite'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="relative h-full w-full overflow-hidden">
-              <img
-                src={
-                  selectedPhase === 'a'
-                    ? comparisonData?.image_a_url || '/api/datasets/night-lights/image?period=2012'
-                    : comparisonData?.image_b_url || '/api/datasets/night-lights/image?period=2023'
-                }
-                alt={
-                  selectedPhase === 'a'
-                    ? 'NASA 2012 Night Lights Observation Baseline'
-                    : 'NASA 2023 Night Lights Observation Modern State'
-                }
-                loading="lazy"
-                decoding="async"
-                className="h-full w-full object-cover transition-transform duration-700"
-              />
-              <div className="absolute bottom-3 left-3 rounded-full border border-white/20 bg-black/75 px-3.5 py-1.5 backdrop-blur-md flex items-center gap-2">
-                <span className="size-2 rounded-full bg-emerald-400 animate-ping" />
-                <span className="font-mono text-xs font-semibold text-white">
-                  {selectedPhase === 'a'
-                    ? comparisonData?.observation_date_a || '2012 Annual Composite (Suomi NPP VIIRS DNB)'
-                    : comparisonData?.observation_date_b || '2023 Annual Composite (Suomi NPP & NOAA-20 VIIRS DNB)'}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Authentic NASA Provenance Watermark */}
-          <div className="absolute top-3 right-3 rounded-full border border-white/10 bg-black/70 px-3 py-1 backdrop-blur-md">
-            <span className="font-mono text-[9px] uppercase tracking-wider text-slate-300">
-              NASA SVS #5313 • BLACK MARBLE COMPOSITE
-            </span>
-          </div>
-        </div>
+        {/* Interactive 3D Earth Powered by Official NASA 3D Model */}
+        <GlobeViewer
+          selectedPhase={selectedPhase}
+          comparisonData={comparisonData}
+        />
 
         {/* Main Stage Grid: Interactive Audio Player & Scientific Metrics */}
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8">

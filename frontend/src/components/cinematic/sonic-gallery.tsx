@@ -24,9 +24,7 @@ interface SonicGalleryProps {
 export function SonicGallery({
   tracks: incomingTracks,
   activeTrack,
-  isPlaying,
   onSelectTrack,
-  onTogglePlay,
 }: SonicGalleryProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const pinWrapperRef = useRef<HTMLDivElement>(null);
@@ -275,7 +273,6 @@ export function SonicGallery({
             }}
           >
             {tracks.map((track, index) => {
-              const isCurrent = activeTrack.id === track.id;
               const isSelected = activeIndex === index;
 
               return (

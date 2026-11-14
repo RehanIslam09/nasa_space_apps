@@ -1,0 +1,554 @@
+{
+  "schema_version": "1.0.0",
+  "milestone": "MILESTONE_1_TEXTURE_PREPROCESSING",
+  "timestamp": "2026-11-14T21:41:39.339174+00:00",
+  "crop_specification": {
+    "x_min": 0,
+    "x_max": 7680,
+    "y_min": 240,
+    "y_max": 4080,
+    "width": 7680,
+    "height": 3840,
+    "aspect_ratio": 2.0
+  },
+  "watermark_mask_specification": {
+    "x_min": 3345,
+    "x_max": 3685,
+    "y_min": 2650,
+    "y_max": 2766,
+    "ocean_fill_rgb": [
+      1,
+      2,
+      7
+    ]
+  },
+  "projection": {
+    "name": "Plate Carr\u00e9e Equirectangular",
+    "aspect_ratio": 2.0,
+    "latitude_bounds": [
+      -90.0,
+      90.0
+    ],
+    "longitude_bounds": [
+      -180.0,
+      180.0
+    ],
+    "equator_y_offset": 1920,
+    "prime_meridian_x_offset": 3840,
+    "pixels_per_degree": 21.333333
+  },
+  "scientific_disclaimer": "Textures are 8-bit visual rendering composites from Suomi NPP VIIRS DNB. RGB pixel values represent image-derived relative luminance proxies, not calibrated physical radiance values (nW/cm^2*sr). Original uncompressed 8K source files remain pristine for backend scientific analysis.",
+  "assets": {
+    "2012": {
+      "source": {
+        "filename": "nightlights_2012.jpg",
+        "expected_dims": [
+          7680,
+          4320
+        ],
+        "source_url": "http://svs.gsfc.nasa.gov/vis/a000000/a005200/a005276/nightlights_flat_series_stills_8k_compare.02012.jpg",
+        "svs_id": 5276,
+        "observation": "2012 Annual Composite (Suomi NPP VIIRS DNB)",
+        "expected_sha256": "31deb9a5a5c2f06a4d661fb02dee59d07a04db331fec3566f228241c07daa03b"
+      },
+      "processing_report": {
+        "year": "2012",
+        "source_asset": "nightlights_2012.jpg",
+        "source_sha256": "31deb9a5a5c2f06a4d661fb02dee59d07a04db331fec3566f228241c07daa03b",
+        "cropped_master_dims": [
+          7680,
+          3840
+        ],
+        "cropped_aspect_ratio": 2.0,
+        "watermark_masked": true,
+        "control_point_validation": [
+          {
+            "name": "Greenwich Pier, London",
+            "lat": 51.48,
+            "lon": -0.01,
+            "description": "Prime Meridian anchor",
+            "predicted_pixel": [
+              3839,
+              821
+            ],
+            "peak_pixel": [
+              3828,
+              842
+            ],
+            "offset_px": [
+              -11,
+              21
+            ],
+            "peak_luminance": 249.97
+          },
+          {
+            "name": "Macap\u00e1, Brazil",
+            "lat": 0.04,
+            "lon": -51.07,
+            "description": "Amazon mouth, exactly on Equator",
+            "predicted_pixel": [
+              2750,
+              1919
+            ],
+            "peak_pixel": [
+              2749,
+              1918
+            ],
+            "offset_px": [
+              -1,
+              -1
+            ],
+            "peak_luminance": 217.79
+          },
+          {
+            "name": "Pontianak, Borneo",
+            "lat": -0.02,
+            "lon": 109.34,
+            "description": "Borneo equatorial city",
+            "predicted_pixel": [
+              6172,
+              1920
+            ],
+            "peak_pixel": [
+              6175,
+              1921
+            ],
+            "offset_px": [
+              3,
+              1
+            ],
+            "peak_luminance": 118.64
+          },
+          {
+            "name": "Singapore Changi",
+            "lat": 1.35,
+            "lon": 103.82,
+            "description": "Equatorial high-density light hub",
+            "predicted_pixel": [
+              6054,
+              1891
+            ],
+            "peak_pixel": [
+              6055,
+              1884
+            ],
+            "offset_px": [
+              1,
+              -7
+            ],
+            "peak_luminance": 248.56
+          },
+          {
+            "name": "Cape of Good Hope",
+            "lat": -33.92,
+            "lon": 18.42,
+            "description": "Southern Africa coastal landmark",
+            "predicted_pixel": [
+              4232,
+              2643
+            ],
+            "peak_pixel": [
+              4221,
+              2632
+            ],
+            "offset_px": [
+              -11,
+              -11
+            ],
+            "peak_luminance": 59.83
+          },
+          {
+            "name": "Buenos Aires",
+            "lat": -34.6,
+            "lon": -58.38,
+            "description": "South America coastal anchor",
+            "predicted_pixel": [
+              2594,
+              2658
+            ],
+            "peak_pixel": [
+              2601,
+              2673
+            ],
+            "offset_px": [
+              7,
+              15
+            ],
+            "peak_luminance": 229.79
+          },
+          {
+            "name": "Punta Arenas, Chile",
+            "lat": -53.16,
+            "lon": -70.91,
+            "description": "High southern latitude coastal city",
+            "predicted_pixel": [
+              2327,
+              3054
+            ],
+            "peak_pixel": [
+              2310,
+              3037
+            ],
+            "offset_px": [
+              -17,
+              -17
+            ],
+            "peak_luminance": 77.1
+          },
+          {
+            "name": "Suez Canal entrance",
+            "lat": 31.26,
+            "lon": 32.3,
+            "description": "Mediterranean-Red Sea pinch point",
+            "predicted_pixel": [
+              4529,
+              1253
+            ],
+            "peak_pixel": [
+              4506,
+              1266
+            ],
+            "offset_px": [
+              -23,
+              13
+            ],
+            "peak_luminance": 217.17
+          },
+          {
+            "name": "Gibraltar Rock",
+            "lat": 36.14,
+            "lon": -5.35,
+            "description": "Strait of Gibraltar entrance",
+            "predicted_pixel": [
+              3725,
+              1149
+            ],
+            "peak_pixel": [
+              3704,
+              1142
+            ],
+            "offset_px": [
+              -21,
+              -7
+            ],
+            "peak_luminance": 130.19
+          }
+        ],
+        "output_files": {
+          "4k_webp": {
+            "filename": "nightlights-2012-4k.webp",
+            "path": "C:\\Users\\rehan\\Hackathons\\Nasa_Space_Apps\\workspace\\nasa_experience\\frontend\\public\\textures\\earth\\nightlights-2012-4k.webp",
+            "relative_path": "/textures/earth/nightlights-2012-4k.webp",
+            "dimensions": [
+              4096,
+              2048
+            ],
+            "aspect_ratio": 2.0,
+            "size_bytes": 321788,
+            "sha256": "f8431339210e1e05a7b0fba8e9b1a8b5d719f7372ed486c37f2db0fa5ea253f8",
+            "format": "WEBP"
+          },
+          "4k_jpg": {
+            "filename": "nightlights-2012-4k.jpg",
+            "path": "C:\\Users\\rehan\\Hackathons\\Nasa_Space_Apps\\workspace\\nasa_experience\\frontend\\public\\textures\\earth\\nightlights-2012-4k.jpg",
+            "relative_path": "/textures/earth/nightlights-2012-4k.jpg",
+            "dimensions": [
+              4096,
+              2048
+            ],
+            "aspect_ratio": 2.0,
+            "size_bytes": 482258,
+            "sha256": "6a3fe442574e85437c6ce595e019084549bd0b95d74b0c3b59c72d5fc2e089cd",
+            "format": "JPG"
+          },
+          "2k_webp": {
+            "filename": "nightlights-2012-2k.webp",
+            "path": "C:\\Users\\rehan\\Hackathons\\Nasa_Space_Apps\\workspace\\nasa_experience\\frontend\\public\\textures\\earth\\nightlights-2012-2k.webp",
+            "relative_path": "/textures/earth/nightlights-2012-2k.webp",
+            "dimensions": [
+              2048,
+              1024
+            ],
+            "aspect_ratio": 2.0,
+            "size_bytes": 98858,
+            "sha256": "a85fd0680ba7e63dcba29135b19fce4cd75793635e6a3f481435fee5d050bed4",
+            "format": "WEBP"
+          },
+          "2k_jpg": {
+            "filename": "nightlights-2012-2k.jpg",
+            "path": "C:\\Users\\rehan\\Hackathons\\Nasa_Space_Apps\\workspace\\nasa_experience\\frontend\\public\\textures\\earth\\nightlights-2012-2k.jpg",
+            "relative_path": "/textures/earth/nightlights-2012-2k.jpg",
+            "dimensions": [
+              2048,
+              1024
+            ],
+            "aspect_ratio": 2.0,
+            "size_bytes": 142651,
+            "sha256": "d89938dcffa61a7ecbc7e1d7d9e65e138c62aa67c67487280da76067ef7552a1",
+            "format": "JPG"
+          }
+        }
+      }
+    },
+    "2023": {
+      "source": {
+        "filename": "nightlights_2023.jpg",
+        "expected_dims": [
+          7680,
+          4320
+        ],
+        "source_url": "http://svs.gsfc.nasa.gov/vis/a000000/a005200/a005276/nightlights_flat_series_stills_8k_compare.02023.jpg",
+        "svs_id": 5276,
+        "observation": "2023 Annual Composite (Suomi NPP & NOAA-20 VIIRS DNB)",
+        "expected_sha256": "2f9b2e2a39a87e9b2627a04a77cb32d17fe235929ec0d45d582e7b638ba658b9"
+      },
+      "processing_report": {
+        "year": "2023",
+        "source_asset": "nightlights_2023.jpg",
+        "source_sha256": "2f9b2e2a39a87e9b2627a04a77cb32d17fe235929ec0d45d582e7b638ba658b9",
+        "cropped_master_dims": [
+          7680,
+          3840
+        ],
+        "cropped_aspect_ratio": 2.0,
+        "watermark_masked": true,
+        "control_point_validation": [
+          {
+            "name": "Greenwich Pier, London",
+            "lat": 51.48,
+            "lon": -0.01,
+            "description": "Prime Meridian anchor",
+            "predicted_pixel": [
+              3839,
+              821
+            ],
+            "peak_pixel": [
+              3828,
+              842
+            ],
+            "offset_px": [
+              -11,
+              21
+            ],
+            "peak_luminance": 229.29
+          },
+          {
+            "name": "Macap\u00e1, Brazil",
+            "lat": 0.04,
+            "lon": -51.07,
+            "description": "Amazon mouth, exactly on Equator",
+            "predicted_pixel": [
+              2750,
+              1919
+            ],
+            "peak_pixel": [
+              2749,
+              1918
+            ],
+            "offset_px": [
+              -1,
+              -1
+            ],
+            "peak_luminance": 232.15
+          },
+          {
+            "name": "Pontianak, Borneo",
+            "lat": -0.02,
+            "lon": 109.34,
+            "description": "Borneo equatorial city",
+            "predicted_pixel": [
+              6172,
+              1920
+            ],
+            "peak_pixel": [
+              6175,
+              1921
+            ],
+            "offset_px": [
+              3,
+              1
+            ],
+            "peak_luminance": 181.93
+          },
+          {
+            "name": "Singapore Changi",
+            "lat": 1.35,
+            "lon": 103.82,
+            "description": "Equatorial high-density light hub",
+            "predicted_pixel": [
+              6054,
+              1891
+            ],
+            "peak_pixel": [
+              6055,
+              1884
+            ],
+            "offset_px": [
+              1,
+              -7
+            ],
+            "peak_luminance": 251.12
+          },
+          {
+            "name": "Cape of Good Hope",
+            "lat": -33.92,
+            "lon": 18.42,
+            "description": "Southern Africa coastal landmark",
+            "predicted_pixel": [
+              4232,
+              2643
+            ],
+            "peak_pixel": [
+              4245,
+              2622
+            ],
+            "offset_px": [
+              13,
+              -21
+            ],
+            "peak_luminance": 58.95
+          },
+          {
+            "name": "Buenos Aires",
+            "lat": -34.6,
+            "lon": -58.38,
+            "description": "South America coastal anchor",
+            "predicted_pixel": [
+              2594,
+              2658
+            ],
+            "peak_pixel": [
+              2601,
+              2673
+            ],
+            "offset_px": [
+              7,
+              15
+            ],
+            "peak_luminance": 231.92
+          },
+          {
+            "name": "Punta Arenas, Chile",
+            "lat": -53.16,
+            "lon": -70.91,
+            "description": "High southern latitude coastal city",
+            "predicted_pixel": [
+              2327,
+              3054
+            ],
+            "peak_pixel": [
+              2340,
+              3045
+            ],
+            "offset_px": [
+              13,
+              -9
+            ],
+            "peak_luminance": 83.2
+          },
+          {
+            "name": "Suez Canal entrance",
+            "lat": 31.26,
+            "lon": 32.3,
+            "description": "Mediterranean-Red Sea pinch point",
+            "predicted_pixel": [
+              4529,
+              1253
+            ],
+            "peak_pixel": [
+              4506,
+              1266
+            ],
+            "offset_px": [
+              -23,
+              13
+            ],
+            "peak_luminance": 191.89
+          },
+          {
+            "name": "Gibraltar Rock",
+            "lat": 36.14,
+            "lon": -5.35,
+            "description": "Strait of Gibraltar entrance",
+            "predicted_pixel": [
+              3725,
+              1149
+            ],
+            "peak_pixel": [
+              3704,
+              1142
+            ],
+            "offset_px": [
+              -21,
+              -7
+            ],
+            "peak_luminance": 170.15
+          }
+        ],
+        "output_files": {
+          "4k_webp": {
+            "filename": "nightlights-2023-4k.webp",
+            "path": "C:\\Users\\rehan\\Hackathons\\Nasa_Space_Apps\\workspace\\nasa_experience\\frontend\\public\\textures\\earth\\nightlights-2023-4k.webp",
+            "relative_path": "/textures/earth/nightlights-2023-4k.webp",
+            "dimensions": [
+              4096,
+              2048
+            ],
+            "aspect_ratio": 2.0,
+            "size_bytes": 351478,
+            "sha256": "3fc5bb61397b7d05541141668ccc542a0b6eed8821c3a67dd024d270f00e4765",
+            "format": "WEBP"
+          },
+          "4k_jpg": {
+            "filename": "nightlights-2023-4k.jpg",
+            "path": "C:\\Users\\rehan\\Hackathons\\Nasa_Space_Apps\\workspace\\nasa_experience\\frontend\\public\\textures\\earth\\nightlights-2023-4k.jpg",
+            "relative_path": "/textures/earth/nightlights-2023-4k.jpg",
+            "dimensions": [
+              4096,
+              2048
+            ],
+            "aspect_ratio": 2.0,
+            "size_bytes": 515045,
+            "sha256": "003ed0ccc38751f28d7d2ae3cc0d17082cc9298e1759abff39499aeca6e4fd4e",
+            "format": "JPG"
+          },
+          "2k_webp": {
+            "filename": "nightlights-2023-2k.webp",
+            "path": "C:\\Users\\rehan\\Hackathons\\Nasa_Space_Apps\\workspace\\nasa_experience\\frontend\\public\\textures\\earth\\nightlights-2023-2k.webp",
+            "relative_path": "/textures/earth/nightlights-2023-2k.webp",
+            "dimensions": [
+              2048,
+              1024
+            ],
+            "aspect_ratio": 2.0,
+            "size_bytes": 107270,
+            "sha256": "9be7738ba76d3d0438d147fc0a21d0e9a224fc2c23ff7638b62c1a6b6f448bef",
+            "format": "WEBP"
+          },
+          "2k_jpg": {
+            "filename": "nightlights-2023-2k.jpg",
+            "path": "C:\\Users\\rehan\\Hackathons\\Nasa_Space_Apps\\workspace\\nasa_experience\\frontend\\public\\textures\\earth\\nightlights-2023-2k.jpg",
+            "relative_path": "/textures/earth/nightlights-2023-2k.jpg",
+            "dimensions": [
+              2048,
+              1024
+            ],
+            "aspect_ratio": 2.0,
+            "size_bytes": 152205,
+            "sha256": "b7f7bd9365d1ad52458ecb92b53ad0073b2fd9a10f61610890b0415754f3f23b",
+            "format": "JPG"
+          }
+        }
+      }
+    }
+  },
+  "co_registration_metrics": {
+    "aligned_resolution": [
+      7680,
+      3840
+    ],
+    "sample_points_tested": 168,
+    "mean_sample_l1_diff": 2.12,
+    "co_registered": true
+  }
+}

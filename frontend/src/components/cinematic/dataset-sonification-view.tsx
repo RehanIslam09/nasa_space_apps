@@ -5,8 +5,6 @@ import Link from 'next/link';
 import {
   Play,
   Pause,
-  Activity,
-  ShieldCheck,
   Volume2,
   VolumeX,
   Layers,
@@ -18,9 +16,6 @@ import {
   ExternalLink,
   ArrowLeft,
   ArrowRight,
-  Radio,
-  Sliders,
-  Cpu,
 } from 'lucide-react';
 import type { SonicTrackConfig } from '@/config/earth-song.config';
 import type { DatasetMetadata, AccessibilityResponse } from '@nasa-experience/contracts';
@@ -57,11 +52,14 @@ export function DatasetSonificationView({
   // Active drawer toggles
   const [showMixer, setShowMixer] = useState(true);
   const [showScience, setShowScience] = useState(true);
-  const [visualizerMode, setVisualizerMode] = useState<'radar' | 'spectrum' | 'scanline'>('radar');
-
   // Dynamically compute constituent layers from NASA sonification rules or variables for all 11 datasets
   const computedLayers = useMemo(() => {
-    const rules = track.sonificationRules || datasetMeta?.sonification_rules || [];
+    const rules = (track.sonificationRules || datasetMeta?.sonification_rules || []) as Array<{
+      layer_name: string;
+      variable_mapped: string;
+      mapping_range: string;
+      synthesis_mode: string;
+    }>;
     if (rules.length > 0) {
       return rules.map((r, idx) => ({
         key: r.layer_name,
@@ -92,7 +90,6 @@ export function DatasetSonificationView({
 
   // DSP Layer Customization State
   const [isSynthesizing, setIsSynthesizing] = useState(false);
-  const [customCadenceActive, setCustomCadenceActive] = useState(false);
   const [layerVolumes, setLayerVolumes] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {};
     computedLayers.forEach((l) => {
@@ -126,7 +123,6 @@ export function DatasetSonificationView({
   const bassFilterRef = useRef<BiquadFilterNode | null>(null);
   const midFilterRef = useRef<BiquadFilterNode | null>(null);
   const highFilterRef = useRef<BiquadFilterNode | null>(null);
-  const animFrameRef = useRef<number | null>(null);
 
   // Visual scanline progress state (0 to 100%)
   const [scanProgress, setScanProgress] = useState(0);
@@ -267,9 +263,9 @@ export function DatasetSonificationView({
       const centerY = canvas.height / 2;
       const baseRadius = Math.min(centerX, centerY) * 0.55;
 
-      let freqData: Uint8Array = new Uint8Array(64);
+      const freqData = new Uint8Array(64);
       if (analyserRef.current && isPlaying) {
-        analyserRef.current.getByteFrequencyData(freqData);
+        analyserRef.current.getByteFrequencyData(freqData as unknown as Uint8Array<ArrayBuffer>);
       } else {
         // Idle ambient breathing animation
         const time = Date.now() * 0.002;
@@ -348,9 +344,9 @@ export function DatasetSonificationView({
     const drawBars = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      let dataArray = new Uint8Array(64);
+      const dataArray = new Uint8Array(64);
       if (analyserRef.current && isPlaying) {
-        analyserRef.current.getByteFrequencyData(dataArray);
+        analyserRef.current.getByteFrequencyData(dataArray as unknown as Uint8Array<ArrayBuffer>);
       } else {
         const time = Date.now() * 0.003;
         for (let i = 0; i < 64; i++) {
@@ -404,7 +400,6 @@ export function DatasetSonificationView({
 
       if (res.success && res.data) {
         setActiveAudioSource(res.data.download_url);
-        setCustomCadenceActive(true);
         if (audioRef.current) {
           audioRef.current.src = res.data.download_url;
           audioRef.current.load();
