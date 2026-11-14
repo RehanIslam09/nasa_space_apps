@@ -26,6 +26,9 @@ export function useLenis(enabled = true) {
     });
 
     lenisRef.current = lenis;
+    if (typeof window !== 'undefined') {
+      (window as Window & { __lenis?: Lenis }).__lenis = lenis;
+    }
 
     // Synchronize Lenis with GSAP ScrollTrigger
     lenis.on('scroll', ScrollTrigger.update);
@@ -35,13 +38,16 @@ export function useLenis(enabled = true) {
     };
 
     gsap.ticker.add(tickerCallback);
-    // lagSmoothing(500, 33) absorbs frame drops without jerkiness
-    gsap.ticker.lagSmoothing(500, 33);
+    // lagSmoothing(0) prevents GSAP internal clock from drifting away from Lenis RAF
+    gsap.ticker.lagSmoothing(0);
 
     return () => {
       gsap.ticker.remove(tickerCallback);
       lenis.destroy();
       lenisRef.current = null;
+      if (typeof window !== 'undefined' && (window as Window & { __lenis?: Lenis }).__lenis === lenis) {
+        delete (window as Window & { __lenis?: Lenis }).__lenis;
+      }
     };
   }, [isEnabled]);
 

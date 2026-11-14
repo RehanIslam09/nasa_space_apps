@@ -1,17 +1,37 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, X, Volume2, VolumeX } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useAppStore } from '@/stores/app-store';
 
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
-  const { isMuted, toggleMute } = useAppStore();
+  const [isScrolledDown, setIsScrolledDown] = useState(false);
+
+  useEffect(() => {
+    let lastScrollY = window.scrollY;
+
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY > 100 && currentScrollY > lastScrollY) {
+        setIsScrolledDown(true);
+      } else {
+        setIsScrolledDown(false);
+      }
+      lastScrollY = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   return (
-    <header className="fixed inset-x-0 top-5 z-50 mx-auto max-w-4xl px-4 sm:px-6">
+    <header
+      className={`pointer-events-auto fixed inset-x-0 top-5 z-[60] mx-auto max-w-4xl px-4 transition-all duration-500 sm:px-6 ${
+        isScrolledDown ? 'opacity-30 hover:opacity-100' : 'opacity-100'
+      }`}
+    >
       <div className="apple-glass sm:h-13 flex h-12 items-center justify-between rounded-full px-5 sm:px-7">
         {/* Brand - Clean Typography without icon */}
         <Link
@@ -44,43 +64,6 @@ export function Header() {
             Sonic Console
           </a>
         </nav>
-
-        {/* Right side controls - Clean Audio Toggle */}
-        <div className="hidden md:flex md:items-center md:gap-3">
-          <button
-            type="button"
-            onClick={toggleMute}
-            className="group flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3.5 py-1.5 text-xs text-white/80 transition-all duration-200 hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-            aria-label={isMuted ? 'Unmute experience' : 'Mute experience'}
-          >
-            {isMuted ? (
-              <>
-                <VolumeX className="h-3.5 w-3.5 text-white/50 transition-colors group-hover:text-white/80" />
-                <span className="font-general text-[10px] uppercase tracking-wider text-white/60">
-                  Muted
-                </span>
-              </>
-            ) : (
-              <>
-                <Volume2 className="h-3.5 w-3.5 text-sky-400" />
-                <span className="font-general text-[10px] uppercase tracking-wider text-sky-300">
-                  Live
-                </span>
-                <div className="ml-0.5 flex items-center gap-0.5">
-                  <span className="indicator-line active !bg-sky-400" />
-                  <span
-                    className="indicator-line active !bg-sky-400"
-                    style={{ animationDelay: '0.15s' }}
-                  />
-                  <span
-                    className="indicator-line active !bg-sky-400"
-                    style={{ animationDelay: '0.3s' }}
-                  />
-                </div>
-              </>
-            )}
-          </button>
-        </div>
 
         {/* Mobile Navigation Trigger */}
         <div className="flex md:hidden">
@@ -123,20 +106,6 @@ export function Header() {
             >
               Sonic Console
             </a>
-            <div className="flex items-center justify-between border-t border-white/10 pt-3">
-              <button
-                type="button"
-                onClick={toggleMute}
-                className="inline-flex items-center gap-2 text-xs text-white/80"
-              >
-                {isMuted ? (
-                  <VolumeX className="h-4 w-4 text-white/50" />
-                ) : (
-                  <Volume2 className="h-4 w-4 text-sky-400" />
-                )}
-                <span>{isMuted ? 'Unmute Audio' : 'Mute Audio'}</span>
-              </button>
-            </div>
           </nav>
         </div>
       )}

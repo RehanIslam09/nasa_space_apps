@@ -35,7 +35,13 @@ export class ApiClient {
   public async request<T>(path: string, options: RequestOptions = {}): Promise<ApiResponse<T>> {
     const { timeoutMs = 8000, params, ...fetchOptions } = options;
 
-    let url = `${this.baseUrl}${path}`;
+    let baseUrl = this.baseUrl;
+    if (!baseUrl && path.startsWith('/') && typeof window === 'undefined') {
+      const port = process.env.PORT || '3000';
+      baseUrl = `http://127.0.0.1:${port}`;
+    }
+
+    let url = `${baseUrl}${path}`;
     if (params) {
       const searchParams = new URLSearchParams();
       Object.entries(params).forEach(([key, value]) => {

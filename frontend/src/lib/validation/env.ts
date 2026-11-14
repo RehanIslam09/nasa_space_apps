@@ -40,6 +40,10 @@ export const serverEnvSchema = z.object({
     .string()
     .min(1, 'SUPABASE_SERVICE_ROLE_KEY must not be empty if provided')
     .optional(),
+  FASTAPI_BACKEND_URL: z
+    .string()
+    .url('FASTAPI_BACKEND_URL must be a valid URL')
+    .optional(),
 });
 
 export type ClientEnv = z.infer<typeof clientEnvSchema>;
@@ -105,6 +109,7 @@ export function getServerEnv(): ServerEnv {
     DATABASE_URL: process.env.DATABASE_URL,
     DIRECT_URL: process.env.DIRECT_URL,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    FASTAPI_BACKEND_URL: process.env.FASTAPI_BACKEND_URL,
   });
 
   if (!result.success) {
@@ -117,4 +122,12 @@ export function getServerEnv(): ServerEnv {
   }
 
   return result.data;
+}
+
+/**
+ * Retrieves the server-side Python FastAPI backend URL.
+ * Defaults to local development port 8000.
+ */
+export function getFastApiBackendUrl(): string {
+  return process.env.FASTAPI_BACKEND_URL || 'http://127.0.0.1:8000';
 }

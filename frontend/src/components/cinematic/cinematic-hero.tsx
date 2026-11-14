@@ -4,7 +4,6 @@ import { useRef, useEffect } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { ArrowDown } from 'lucide-react';
-import { useAppStore } from '@/stores/app-store';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { PranaHeadline } from './prana-headline';
 import { ScrollCue } from './scroll-cue';
@@ -18,16 +17,16 @@ export function CinematicHero() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { isMuted } = useAppStore();
   const prefersReducedMotion = useReducedMotion();
 
-  // Instant video autoplay sync
+  // Instant video autoplay sync (permanently muted ambient visual)
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
 
     vid.defaultMuted = true;
-    vid.muted = isMuted;
+    vid.muted = true;
+    vid.volume = 0;
 
     const playVideo = () => {
       vid.play().catch(() => {});
@@ -42,7 +41,7 @@ export function CinematicHero() {
     return () => {
       vid.removeEventListener('canplay', playVideo);
     };
-  }, [isMuted]);
+  }, []);
 
   // Clean, organic scroll-driven polygon clip & reveal without artificial pinning
   useEffect(() => {
@@ -139,7 +138,7 @@ export function CinematicHero() {
           ref={videoRef}
           src={earthSongConfig.media.heroVideo}
           loop
-          muted={isMuted}
+          muted
           playsInline
           autoPlay
           preload="auto"

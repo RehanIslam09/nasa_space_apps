@@ -1,0 +1,88 @@
+{
+  "global_metrics": {
+    "mean_brightness": 0.2208,
+    "spatial_density": 0.4858,
+    "channel_distribution": {
+      "red": 0.2422,
+      "green": 0.3255,
+      "blue": 0.4324
+    },
+    "aerosol_constituents": {
+      "dust": 0.0112,
+      "sea_salt": 1.0,
+      "smoke": 0.0413,
+      "sulfate": 0.1411
+    }
+  },
+  "regional_slices": [
+    {
+      "region_index": 0,
+      "latitude_band": "Region 1 of 8",
+      "mean_brightness": 0.191,
+      "red_ratio": 0.2768,
+      "green_ratio": 0.3279,
+      "blue_ratio": 0.3953
+    },
+    {
+      "region_index": 1,
+      "latitude_band": "Region 2 of 8",
+      "mean_brightness": 0.2298,
+      "red_ratio": 0.259,
+      "green_ratio": 0.3239,
+      "blue_ratio": 0.4171
+    },
+    {
+      "region_index": 2,
+      "latitude_band": "Region 3 of 8",
+      "mean_brightness": 0.2212,
+      "red_ratio": 0.2338,
+      "green_ratio": 0.3251,
+      "blue_ratio": 0.4411
+    },
+    {
+      "region_index": 3,
+      "latitude_band": "Region 4 of 8",
+      "mean_brightness": 0.23,
+      "red_ratio": 0.2073,
+      "green_ratio": 0.3225,
+      "blue_ratio": 0.4701
+    },
+    {
+      "region_index": 4,
+      "latitude_band": "Region 5 of 8",
+      "mean_brightness": 0.2581,
+      "red_ratio": 0.22,
+      "green_ratio": 0.3259,
+      "blue_ratio": 0.4541
+    },
+    {
+      "region_index": 5,
+      "latitude_band": "Region 6 of 8",
+      "mean_brightness": 0.2362,
+      "red_ratio": 0.2309,
+      "green_ratio": 0.329,
+      "blue_ratio": 0.4401
+    },
+    {
+      "region_index": 6,
+      "latitude_band": "Region 7 of 8",
+      "mean_brightness": 0.2157,
+      "red_ratio": 0.2495,
+      "green_ratio": 0.3237,
+      "blue_ratio": 0.4268
+    },
+    {
+      "region_index": 7,
+      "latitude_band": "Region 8 of 8",
+      "mean_brightness": 0.1869,
+      "red_ratio": 0.2757,
+      "green_ratio": 0.3259,
+      "blue_ratio": 0.3985
+    }
+  ],
+  "dimensions": {
+    "width": 983,
+    "height": 501,
+    "total_pixels": 492483
+  }
+}

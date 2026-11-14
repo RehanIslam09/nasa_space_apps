@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { AppProviders } from '@/components/providers';
@@ -9,23 +9,43 @@ const inter = Inter({
   display: 'swap',
 });
 
+export const viewport: Viewport = {
+  themeColor: '#000000',
+  width: 'device-width',
+  initialScale: 1,
+};
+
 export const metadata: Metadata = {
-  title: 'Earth Song — NASA Space Apps Cinematic Experience',
+  title: 'Earth Song — The Living Breath of Earth',
   description:
-    'The Living Breath of Earth. An immersive, cinematic exploration of Earth through NASA observation telemetry, visual storytelling, and planetary sonification.',
+    'Listen to the living Earth. Explore NASA Earth science visualizations transformed into immersive soundscapes through PRANA.',
   metadataBase: new URL('http://localhost:3000'),
+  applicationName: 'Earth Song',
+  keywords: [
+    'NASA Space Apps Challenge',
+    'Earth Information Jukebox',
+    'Earth Song',
+    'PRANA',
+    'Data Sonification',
+    'NASA Earth Science',
+    'GEOS Aerosols',
+    'Ocean Currents',
+    'Black Marble',
+  ],
+  authors: [{ name: 'Earth Song Team' }],
   openGraph: {
-    title: 'Earth Song — NASA Space Apps Cinematic Experience',
+    title: 'Earth Song — The Living Breath of Earth',
     description:
-      'The Living Breath of Earth. An immersive, cinematic exploration of Earth through NASA observation telemetry, visual storytelling, and planetary sonification.',
+      'Listen to the living Earth. Explore NASA Earth science visualizations transformed into immersive soundscapes through PRANA.',
     type: 'website',
     locale: 'en_US',
+    siteName: 'Earth Song',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Earth Song — NASA Space Apps Cinematic Experience',
+    title: 'Earth Song — The Living Breath of Earth',
     description:
-      'The Living Breath of Earth. An immersive, cinematic exploration of Earth through NASA observation telemetry, visual storytelling, and planetary sonification.',
+      'Listen to the living Earth. Explore NASA Earth science visualizations transformed into immersive soundscapes through PRANA.',
   },
   robots: {
     index: true,

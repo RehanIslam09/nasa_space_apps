@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "pnpm --filter @nasa-experience/frontend dev",
+    "dev": "concurrently -k -p \"[{name}]\" -n \"frontend,backend\" -c \"cyan.bold,yellow.bold\" \"pnpm dev:frontend\" \"pnpm dev:backend\"",
+    "dev:frontend": "pnpm --filter @nasa-experience/frontend dev",
+    "dev:backend": "node scripts/dev-backend.js",
     "build": "pnpm --filter @nasa-experience/frontend build",
     "start": "pnpm --filter @nasa-experience/frontend start",
     "test": "pnpm -r test",
@@ -22,6 +24,7 @@
     "db:studio": "pnpm --filter @nasa-experience/backend db:studio"
   },
   "devDependencies": {
+    "concurrently": "^10.0.7",
     "eslint": "^9.20.0",
     "prettier": "^3.5.0",
     "prettier-plugin-tailwindcss": "^0.6.11",

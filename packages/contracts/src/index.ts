@@ -9,3 +9,6 @@
 
 export * from './common';
 export * from './health';
+export * from './dataset';
+export * from './sonification';
+export * from './insights';
