@@ -5,6 +5,7 @@ import { Compass, Wind, RotateCcw } from 'lucide-react';
 import type { SonicTrackConfig } from '@/config/earth-song.config';
 
 interface SpacePanelProps {
+  activeTrack?: SonicTrackConfig;
   spaceX: number;
   setSpaceX: (val: number) => void;
   spaceY: number;
@@ -16,6 +17,7 @@ interface SpacePanelProps {
 }
 
 export function SpacePanel({
+  activeTrack: _activeTrack,
   spaceX,
   setSpaceX,
   spaceY,

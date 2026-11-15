@@ -65,6 +65,8 @@ export default async function DatasetPage(props: PageProps) {
       datasetMeta={dataset}
       prevTrack={prevTrack}
       nextTrack={nextTrack}
+      currentIndex={datasetIndex !== -1 ? datasetIndex : 0}
+      totalCount={allDatasets.length}
     />
   );
 }

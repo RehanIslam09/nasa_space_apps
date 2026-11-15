@@ -21,12 +21,15 @@ import type { SonicTrackConfig } from '@/config/earth-song.config';
 import type { DatasetMetadata, AccessibilityResponse } from '@nasa-experience/contracts';
 import { sonificationService, insightsService } from '@/services/api';
 import { Starfield } from './starfield';
+import { StudioNav } from '@/components/navigation/studio-nav';
 
 interface DatasetSonificationViewProps {
   track: SonicTrackConfig;
   datasetMeta?: DatasetMetadata | null;
   prevTrack?: SonicTrackConfig | null;
   nextTrack?: SonicTrackConfig | null;
+  currentIndex?: number;
+  totalCount?: number;
 }
 
 export function DatasetSonificationView({
@@ -34,6 +37,8 @@ export function DatasetSonificationView({
   datasetMeta,
   prevTrack,
   nextTrack,
+  currentIndex = 0,
+  totalCount = 11,
 }: DatasetSonificationViewProps) {
   // Audio playback state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -452,37 +457,36 @@ export function DatasetSonificationView({
         }}
       />
 
-      <div className="relative z-10 mx-auto max-w-7xl px-4 pt-24 pb-20 sm:px-6 lg:px-8">
-        {/* Top Header Navigation & Breadcrumbs */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <Link
-            href="/#jukebox"
-            className="group flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-4 py-2 text-xs font-medium text-slate-300 backdrop-blur-md transition-all hover:border-sky-400/50 hover:bg-black/60 hover:text-white"
-          >
-            <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-1" />
-            <span>Return to Earth Song Gallery</span>
-          </Link>
+      {/* Studio Navigation Bar */}
+      <StudioNav
+        track={track}
+        currentIndex={currentIndex}
+        totalCount={totalCount}
+        prevTrack={prevTrack}
+        nextTrack={nextTrack}
+      />
 
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-xs font-semibold uppercase tracking-wider text-sky-400">
-              {track.category}
-            </span>
-            <span className="text-white/20">•</span>
-            <div className="rounded-full border border-white/15 bg-black/60 px-3 py-1 font-mono text-xs text-sky-300 backdrop-blur-md">
-              {track.frequency}
-            </div>
-            {track.svsId && (
-              <a
-                href={track.nasaUrl || `https://svs.gsfc.nasa.gov/${track.svsId}/`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 rounded-full border border-sky-400/40 bg-sky-950/70 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-sky-200 transition-colors hover:border-sky-300"
-              >
-                <span>NASA SVS #{track.svsId}</span>
-                <ExternalLink className="size-3" />
-              </a>
-            )}
+      <div className="relative z-10 mx-auto max-w-7xl px-4 pt-24 pb-36 sm:px-6 lg:px-8">
+        {/* Top Header Metadata Bar */}
+        <div className="mb-6 flex flex-wrap items-center justify-end gap-2">
+          <span className="font-mono text-xs font-semibold uppercase tracking-wider text-sky-400">
+            {track.category}
+          </span>
+          <span className="text-white/20">•</span>
+          <div className="rounded-full border border-white/15 bg-black/60 px-3 py-1 font-mono text-xs text-sky-300 backdrop-blur-md">
+            {track.frequency}
           </div>
+          {track.svsId && (
+            <a
+              href={track.nasaUrl || `https://svs.gsfc.nasa.gov/${track.svsId}/`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 rounded-full border border-sky-400/40 bg-sky-950/70 px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-sky-200 transition-colors hover:border-sky-300"
+            >
+              <span>NASA SVS #{track.svsId}</span>
+              <ExternalLink className="size-3" />
+            </a>
+          )}
         </div>
 
         {/* Dataset Headline */}
@@ -542,8 +546,16 @@ export function DatasetSonificationView({
                 }}
               >
                 <div
-                  className="absolute -top-1 left-1/2 -translate-x-1/2 rounded-full px-1.5 py-0.5 font-mono text-[8px] font-bold text-black"
-                  style={{ backgroundColor: track.color.accent }}
+                  className="absolute top-2 whitespace-nowrap rounded-full px-1.5 py-0.5 font-mono text-[8px] font-bold text-black shadow-md transition-transform"
+                  style={{
+                    backgroundColor: track.color.accent,
+                    transform:
+                      scanProgress < 10
+                        ? 'translateX(0)'
+                        : scanProgress > 90
+                        ? 'translateX(-100%)'
+                        : 'translateX(-50%)',
+                  }}
                 >
                   AUDIO CONVERTER
                 </div>
@@ -957,14 +969,14 @@ export function DatasetSonificationView({
           {prevTrack ? (
             <Link
               href={`/dataset/${prevTrack.id}`}
-              className="group flex items-center gap-3 rounded-2xl border border-white/10 bg-black/40 px-5 py-3 text-left transition-all hover:border-sky-400/50 hover:bg-black/70"
+              className="group flex max-w-full items-center gap-3 rounded-2xl border border-white/10 bg-black/40 px-5 py-3 text-left transition-all hover:border-sky-400/50 hover:bg-black/70"
             >
               <ArrowLeft className="size-5 text-sky-400 transition-transform group-hover:-translate-x-1" />
-              <div>
+              <div className="overflow-hidden">
                 <span className="block font-mono text-[10px] uppercase tracking-wider text-slate-400">
                   Previous Dataset
                 </span>
-                <span className="block font-bold text-white text-sm truncate max-w-xs">
+                <span className="block font-bold text-white text-sm truncate max-w-[180px] sm:max-w-xs">
                   {prevTrack.title}
                 </span>
               </div>
@@ -976,13 +988,13 @@ export function DatasetSonificationView({
           {nextTrack ? (
             <Link
               href={`/dataset/${nextTrack.id}`}
-              className="group flex items-center gap-3 rounded-2xl border border-white/10 bg-black/40 px-5 py-3 text-right transition-all hover:border-sky-400/50 hover:bg-black/70 ml-auto"
+              className="group flex max-w-full items-center gap-3 rounded-2xl border border-white/10 bg-black/40 px-5 py-3 text-right transition-all hover:border-sky-400/50 hover:bg-black/70 ml-auto"
             >
-              <div>
+              <div className="overflow-hidden">
                 <span className="block font-mono text-[10px] uppercase tracking-wider text-slate-400">
                   Next Dataset
                 </span>
-                <span className="block font-bold text-white text-sm truncate max-w-xs">
+                <span className="block font-bold text-white text-sm truncate max-w-[180px] sm:max-w-xs">
                   {nextTrack.title}
                 </span>
               </div>
