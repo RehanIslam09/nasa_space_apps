@@ -41,6 +41,32 @@ export function BalanceDisrupted() {
     </span>
   ));
 
+  // Ensure volcano video reliably autoplays without getting stuck on a black frame
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid) return;
+
+    vid.defaultMuted = true;
+    vid.muted = true;
+    vid.volume = 0;
+
+    const playVideo = () => {
+      vid.play().catch(() => {});
+    };
+
+    if (vid.readyState >= 2) {
+      playVideo();
+    } else {
+      vid.addEventListener('canplay', playVideo, { once: true });
+      vid.addEventListener('loadeddata', playVideo, { once: true });
+    }
+
+    return () => {
+      vid.removeEventListener('canplay', playVideo);
+      vid.removeEventListener('loadeddata', playVideo);
+    };
+  }, []);
+
   // 1. Tension Detail: High-performance 60fps Heartbeat Dysrhythmia Waveform Canvas
   useEffect(() => {
     if (prefersReducedMotion) return;
@@ -313,12 +339,12 @@ export function BalanceDisrupted() {
           {/* Authentic Volcano / Planetary Disruption Footage */}
           <video
             ref={videoRef}
-            src={earthSongConfig.media.storyVideo}
+            src="/videos/Recording%202026-11-14%20165733.mp4"
             loop
             muted
             playsInline
             autoPlay
-            preload="metadata"
+            preload="auto"
             className="h-full w-full object-cover object-center will-change-transform"
           />
 

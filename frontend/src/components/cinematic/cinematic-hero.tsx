@@ -5,7 +5,6 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { ArrowDown } from 'lucide-react';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
-import { useAppStore } from '@/stores/app-store';
 import { PranaHeadline } from './prana-headline';
 import { ScrollCue } from './scroll-cue';
 import { earthSongConfig } from '@/config/earth-song.config';
@@ -19,16 +18,15 @@ export function CinematicHero() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const prefersReducedMotion = useReducedMotion();
-  const { isMuted } = useAppStore();
 
-  // Instant video autoplay sync (starts muted to respect browser policy, unlocks on user interaction)
+  // Instant video autoplay sync (permanently muted ambient visual — no background music)
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
 
     vid.defaultMuted = true;
-    vid.muted = isMuted;
-    vid.volume = isMuted ? 0 : 0.85;
+    vid.muted = true;
+    vid.volume = 0;
 
     const playVideo = () => {
       vid.play().catch(() => {});
@@ -44,21 +42,6 @@ export function CinematicHero() {
       vid.removeEventListener('canplay', playVideo);
     };
   }, []);
-
-  // Synchronize audio mute state when user toggles sound via the navbar button
-  useEffect(() => {
-    const vid = videoRef.current;
-    if (!vid) return;
-
-    if (isMuted) {
-      vid.muted = true;
-      vid.volume = 0;
-    } else {
-      vid.muted = false;
-      vid.volume = 0.85;
-      vid.play().catch(() => {});
-    }
-  }, [isMuted]);
 
   // Clean, organic scroll-driven polygon clip & reveal without artificial pinning
   useEffect(() => {
@@ -118,31 +101,6 @@ export function CinematicHero() {
           scrub: true,
         },
       });
-
-      // Duck hero video volume smoothly as user scrolls into Chapter 01
-      ScrollTrigger.create({
-        trigger: '#video-frame',
-        start: 'top top',
-        end: 'bottom top',
-        scrub: true,
-        onUpdate: (self) => {
-          const vid = videoRef.current;
-          if (!vid) return;
-          const storeMuted = useAppStore.getState().isMuted;
-          if (storeMuted) {
-            vid.volume = 0;
-            return;
-          }
-          // Smoothly duck volume as user scrolls away from hero
-          const vol = Math.max(0, Math.min(0.85, 0.85 * (1 - self.progress * 1.4)));
-          vid.volume = vol;
-          if (self.progress >= 0.95 && !vid.paused) {
-            vid.pause();
-          } else if (self.progress < 0.95 && vid.paused && !storeMuted) {
-            vid.play().catch(() => {});
-          }
-        },
-      });
     }, containerRef);
 
     return () => ctx.revert();
@@ -175,7 +133,7 @@ export function CinematicHero() {
         id="video-frame"
         className="relative z-10 h-full w-full transform-gpu overflow-hidden bg-[#000000] will-change-[clip-path,border-radius]"
       >
-        {/* Cinematic Narrative Video */}
+        {/* Cinematic Narrative Video — Muted ambient visual without background music */}
         <video
           ref={videoRef}
           src={earthSongConfig.media.heroVideo}
@@ -185,6 +143,7 @@ export function CinematicHero() {
           autoPlay
           preload="metadata"
           className="absolute inset-0 h-full w-full object-cover object-center brightness-[0.92] contrast-[1.05] filter"
+          aria-label="Earth narrative cinematic visualization"
         />
 
         {/* Atmospheric Gradient Overlays for Depth */}

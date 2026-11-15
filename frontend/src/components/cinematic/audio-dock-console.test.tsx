@@ -128,15 +128,15 @@ describe('AudioDockConsole Accessibility & Science Communication', () => {
       />
     );
 
-    const mixerBtn = screen.getByRole('button', {
-      name: /toggle constituent layer synthesizer mixer/i,
+    const mixerTab = screen.getByRole('tab', {
+      name: /mix|toggle constituent layer synthesizer mixer/i,
     });
-    expect(mixerBtn).toHaveAttribute('aria-expanded', 'false');
-    expect(mixerBtn).toHaveAttribute('aria-controls', 'constituent-mixer-panel');
+    expect(mixerTab).toHaveAttribute('aria-selected', 'true');
+    expect(mixerTab).toHaveAttribute('aria-controls', 'constituent-mixer-panel');
 
-    // Open mixer
-    fireEvent.click(mixerBtn);
-    expect(mixerBtn).toHaveAttribute('aria-expanded', 'true');
+    // Expand the "Build your own mix" accordion
+    const accordionBtn = screen.getByRole('button', { name: /build your own mix/i });
+    fireEvent.click(accordionBtn);
 
     // Verify constituent sliders
     const dustSlider = screen.getByRole('slider', { name: /dust layer volume/i });
@@ -157,7 +157,7 @@ describe('AudioDockConsole Accessibility & Science Communication', () => {
     expect(sulfateSlider).toHaveAttribute('aria-valuenow', '50');
   });
 
-  it('opens Science Legend drawer, loads accessibility narrative, and closes with Escape key', async () => {
+  it('opens Science Learn tab and loads accessibility narrative', async () => {
     render(
       <AudioDockConsole
         activeTrack={mockTrack}
@@ -166,15 +166,15 @@ describe('AudioDockConsole Accessibility & Science Communication', () => {
       />
     );
 
-    const legendBtn = screen.getByRole('button', {
-      name: /toggle scientific interpretation & audio legend/i,
+    const learnTab = screen.getByRole('tab', {
+      name: /learn|toggle scientific interpretation & audio legend/i,
     });
-    expect(legendBtn).toHaveAttribute('aria-expanded', 'false');
-    expect(legendBtn).toHaveAttribute('aria-controls', 'science-legend-panel');
+    expect(learnTab).toHaveAttribute('aria-selected', 'false');
+    expect(learnTab).toHaveAttribute('aria-controls', 'science-legend-panel');
 
-    // Click to open Science Legend
-    fireEvent.click(legendBtn);
-    expect(legendBtn).toHaveAttribute('aria-expanded', 'true');
+    // Click to switch to Learn Tab
+    fireEvent.click(learnTab);
+    expect(learnTab).toHaveAttribute('aria-selected', 'true');
 
     await waitFor(() => {
       expect(insightsService.getAccessibility).toHaveBeenCalledWith('geos-aerosols');
@@ -184,15 +184,7 @@ describe('AudioDockConsole Accessibility & Science Communication', () => {
     await waitFor(() => {
       expect(screen.getByText('Desert Dust Layer')).toBeInTheDocument();
       expect(screen.getByText('Marine Sea Salt')).toBeInTheDocument();
-      expect(screen.getByText(/Tactile Transducer \/ Bass Shaker Guidance:/i)).toBeInTheDocument();
     });
-
-    // Press Escape to dismiss drawer
-    fireEvent.keyDown(window, { key: 'Escape' });
-
-    // Verify panel closed
-    expect(screen.queryByText('Desert Dust Layer')).not.toBeInTheDocument();
-    expect(legendBtn).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('triggers custom DSP synthesis and announces progress', async () => {
@@ -204,12 +196,9 @@ describe('AudioDockConsole Accessibility & Science Communication', () => {
       />
     );
 
-    // Open mixer
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: /toggle constituent layer synthesizer mixer/i,
-      })
-    );
+    // Expand the "Build your own mix" accordion
+    const accordionBtn = screen.getByRole('button', { name: /build your own mix/i });
+    fireEvent.click(accordionBtn);
 
     // Click synthesize
     const synthBtn = screen.getByRole('button', {
@@ -229,7 +218,7 @@ describe('AudioDockConsole Accessibility & Science Communication', () => {
     });
   });
 
-  it('opens 2D Spatial Audio panel and adjusts atmospheric reverb', () => {
+  it('opens 2D Spatial Audio Move tab and adjusts atmospheric reverb', () => {
     render(
       <AudioDockConsole
         activeTrack={mockTrack}
@@ -238,13 +227,13 @@ describe('AudioDockConsole Accessibility & Science Communication', () => {
       />
     );
 
-    const spaceBtn = screen.getByRole('button', {
-      name: /toggle spatial audio and planetary field/i,
+    const moveTab = screen.getByRole('tab', {
+      name: /move|toggle spatial audio and planetary field/i,
     });
-    expect(spaceBtn).toHaveAttribute('aria-expanded', 'false');
+    expect(moveTab).toHaveAttribute('aria-selected', 'false');
 
-    fireEvent.click(spaceBtn);
-    expect(spaceBtn).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(moveTab);
+    expect(moveTab).toHaveAttribute('aria-selected', 'true');
 
     // 2D Spatial Position slider pad
     const spatialPad = screen.getByRole('slider', {
@@ -273,13 +262,13 @@ describe('AudioDockConsole Accessibility & Science Communication', () => {
       />
     );
 
-    const accessBtn = screen.getByRole('button', {
-      name: /toggle accessibility & sensory settings/i,
+    const accessTab = screen.getByRole('tab', {
+      name: /access|toggle accessibility & sensory settings/i,
     });
-    expect(accessBtn).toHaveAttribute('aria-expanded', 'false');
+    expect(accessTab).toHaveAttribute('aria-selected', 'false');
 
-    fireEvent.click(accessBtn);
-    expect(accessBtn).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(accessTab);
+    expect(accessTab).toHaveAttribute('aria-selected', 'true');
 
     // Verify Earcon options
     expect(screen.getByRole('button', { name: /^full$/i })).toBeInTheDocument();
@@ -292,7 +281,7 @@ describe('AudioDockConsole Accessibility & Science Communication', () => {
     expect(screen.getByRole('button', { name: /active/i })).toBeInTheDocument();
   });
 
-  it('applies acoustic sound presets in mixer', () => {
+  it('applies acoustic sound presets in console', () => {
     render(
       <AudioDockConsole
         activeTrack={mockTrack}
@@ -301,14 +290,7 @@ describe('AudioDockConsole Accessibility & Science Communication', () => {
       />
     );
 
-    // Open mixer
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: /toggle constituent layer synthesizer mixer/i,
-      })
-    );
-
-    // Click "Deep Ocean" preset
+    // Click "Deep Ocean" mood preset
     const deepOceanPreset = screen.getByRole('button', { name: /deep ocean/i });
     fireEvent.click(deepOceanPreset);
 

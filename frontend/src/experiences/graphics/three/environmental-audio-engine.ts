@@ -315,10 +315,34 @@ export class EnvironmentalSonificationEngine {
   }
 
   public pause(): void {
-    if (!this.ctx || !this._isPlaying || !this.activeVoice) return;
+    if (!this.ctx || !this.activeVoice) {
+      this._isPlaying = false;
+      this.notifyListeners(false);
+      return;
+    }
     const now = this.ctx.currentTime;
-    this.activeVoice.voiceGain.gain.setValueAtTime(this.activeVoice.voiceGain.gain.value, now);
-    this.activeVoice.voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+    const voice = this.activeVoice;
+    try {
+      voice.voiceGain.gain.setValueAtTime(voice.voiceGain.gain.value, now);
+      voice.voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+      setTimeout(() => {
+        try {
+          voice.rootOsc.stop();
+          voice.rootOsc.disconnect();
+          voice.harmonicOsc1.stop();
+          voice.harmonicOsc1.disconnect();
+          voice.harmonicOsc2.stop();
+          voice.harmonicOsc2.disconnect();
+          voice.lfoOsc?.stop();
+          voice.lfoOsc?.disconnect();
+          voice.noiseSource?.stop();
+          voice.noiseSource?.disconnect();
+          voice.filter.disconnect();
+          voice.voiceGain.disconnect();
+        } catch {}
+      }, 50);
+    } catch {}
+    this.activeVoice = null;
     this._isPlaying = false;
     this.notifyListeners(false);
   }

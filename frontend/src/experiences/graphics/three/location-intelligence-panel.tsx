@@ -61,7 +61,10 @@ export function LocationIntelligencePanel({
     const unsub = environmentalAudioEngine.subscribe((playing) => {
       setIsPlaying(playing);
     });
-    return unsub;
+    return () => {
+      unsub();
+      environmentalAudioEngine.stop();
+    };
   }, []);
 
   // Synchronize audio engine with selectedPhase or location changes

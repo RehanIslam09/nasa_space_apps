@@ -6,6 +6,7 @@ import { sonificationService } from '@/services/api';
 import type { CompareResponse } from '@nasa-experience/contracts';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { GlobeViewer } from '@/experiences/graphics/three';
+import { environmentalAudioEngine } from '@/experiences/graphics/three/environmental-audio-engine';
 
 export function ThenVsNow() {
   const [selectedPhase, setSelectedPhase] = useState<'a' | 'b' | 'diff'>('diff');
@@ -53,6 +54,41 @@ export function ThenVsNow() {
     return comparisonData.audio_diff_url;
   };
 
+  // Synchronize audio playback cleanly without race conditions
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const targetUrl = getAudioUrl();
+    if (audio.src !== targetUrl && !audio.src.endsWith(targetUrl)) {
+      audio.src = targetUrl;
+      audio.load();
+    }
+
+    if (isPlaying) {
+      environmentalAudioEngine.stop();
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          setIsPlaying(false);
+        });
+      }
+    } else {
+      audio.pause();
+    }
+  }, [selectedPhase, comparisonData, isPlaying]);
+
+  // Comprehensive audio cleanup on unmount: halts both WAV audio and procedural synth
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+      }
+      environmentalAudioEngine.stop();
+    };
+  }, []);
+
   const handleSelectPhase = (phase: 'a' | 'b' | 'diff') => {
     setSelectedPhase(phase);
     if (phase === 'a') {
@@ -62,22 +98,18 @@ export function ThenVsNow() {
     } else {
       setAnnouncement('Switched to Dual-Phase Comparative Audio tracking 11-year planetary delta.');
     }
-    if (audioRef.current) {
-      audioRef.current.load();
-      if (isPlaying) {
-        audioRef.current.play().catch(() => {});
-      }
-    }
   };
 
   const togglePlay = () => {
-    if (!audioRef.current) return;
     if (isPlaying) {
-      audioRef.current.pause();
       setIsPlaying(false);
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      environmentalAudioEngine.stop();
       setAnnouncement('Paused comparison audio.');
     } else {
-      audioRef.current.play().catch(() => {});
+      environmentalAudioEngine.stop();
       setIsPlaying(true);
       setAnnouncement(
         selectedPhase === 'diff'
@@ -120,6 +152,8 @@ export function ThenVsNow() {
         ref={audioRef}
         src={getAudioUrl()}
         loop
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
       />
 

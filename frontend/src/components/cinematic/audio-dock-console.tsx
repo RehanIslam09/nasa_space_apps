@@ -3,17 +3,22 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { SonicTrackConfig } from '@/config/earth-song.config';
 import {
-  Play,
-  Pause,
   Activity,
   ShieldCheck,
   Volume2,
   VolumeX,
-  Sliders,
+  SlidersHorizontal,
   Compass,
-  Info,
+  BookOpen,
   Accessibility,
-  Radio,
+  HelpCircle,
+  Disc,
+  Download,
+  Sparkles,
+  Waves,
+  CloudLightning,
+  Flame,
+  X,
 } from 'lucide-react';
 import { useAppStore } from '@/stores/app-store';
 import { sonificationService, insightsService } from '@/services/api';
@@ -30,15 +35,76 @@ import { SpacePanel } from './audio-console/space-panel';
 import { SciencePanel } from './audio-console/science-panel';
 import { AccessPanel } from './audio-console/access-panel';
 
+/**
+ * TUNING CONSTANTS — Audio Dock Console Layout & Presets
+ */
+export const TUNING = {
+  console: {
+    desktopHeight: 'clamp(560px, 78vh, 720px)',
+    desktopLeftWidth: '45%',
+    desktopRightWidth: '55%',
+  },
+  presets: [
+    {
+      name: 'Calm Earth',
+      icon: Sparkles,
+      bass: 55,
+      mid: 60,
+      high: 50,
+      dust: 40,
+      salt: 60,
+      smoke: 20,
+      sulfate: 30,
+    },
+    {
+      name: 'Deep Ocean',
+      icon: Waves,
+      bass: 85,
+      mid: 50,
+      high: 45,
+      dust: 20,
+      salt: 90,
+      smoke: 15,
+      sulfate: 25,
+    },
+    {
+      name: 'Storm Dynamics',
+      icon: CloudLightning,
+      bass: 70,
+      mid: 80,
+      high: 75,
+      dust: 75,
+      salt: 80,
+      smoke: 60,
+      sulfate: 50,
+    },
+    {
+      name: 'Planetary Fever',
+      icon: Flame,
+      bass: 60,
+      mid: 85,
+      high: 80,
+      dust: 85,
+      salt: 40,
+      smoke: 90,
+      sulfate: 70,
+    },
+  ],
+};
+
 interface AudioDockConsoleProps {
   activeTrack: SonicTrackConfig;
   isPlaying: boolean;
   onTogglePlay: () => void;
 }
 
-export type ConsoleDrawer = 'mixer' | 'space' | 'science' | 'access' | null;
+export type ConsoleTab = 'mix' | 'move' | 'learn' | 'access';
 
 export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: AudioDockConsoleProps) {
+  // Active Tab: 'mix' | 'move' | 'learn' | 'access' (Default: 'mix')
+  const [activeTab, setActiveTab] = useState<ConsoleTab>('mix');
+  const [activePreset, setActivePreset] = useState<string | null>(null);
+
   // 3-Band Equalizer (Low / Mid / High)
   const [eqBass, setEqBass] = useState(65);
   const [eqMid, setEqMid] = useState(75);
@@ -49,9 +115,9 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
   const [spaceY, setSpaceY] = useState(0.5);
   const [atmosphereReverb, setAtmosphereReverb] = useState(0.2);
 
-  // Time & Duration
+  // Time & Duration (Initialized to 12.0s NASA loop duration instead of hardcoded 180s)
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(180);
+  const [duration, setDuration] = useState(12);
   const [healthStatus, setHealthStatus] = useState<'idle' | 'checking' | 'healthy'>('idle');
 
   // Real NASA audio & customization state
@@ -62,8 +128,7 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
   const [customMixActive, setCustomMixActive] = useState(false);
   const [audioFallbackActive, setAudioFallbackActive] = useState(false);
 
-  // Active drawer tab: 'mixer' | 'space' | 'science' | 'access' | null
-  const [activeDrawer, setActiveDrawer] = useState<ConsoleDrawer>(null);
+  // Accessibility science legend data
   const [accessibilityData, setAccessibilityData] = useState<AccessibilityResponse | null>(null);
 
   // 4-layer constituent adjustments (0 to 100%)
@@ -77,11 +142,20 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
   const [tactileEnabled, setTactileEnabled] = useState(false);
   const [tactileCutoff, setTactileCutoff] = useState<68 | 136>(136);
 
+  // Shortcuts Dialog State
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+  // Master Media Recording State
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordedBlobUrl, setRecordedBlobUrl] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
   // Refs
   const audioRef = useRef<HTMLAudioElement>(null);
   const mixerBtnRef = useRef<HTMLButtonElement>(null);
-  const accessibilityBtnRef = useRef<HTMLButtonElement>(null);
   const spaceBtnRef = useRef<HTMLButtonElement>(null);
+  const accessibilityBtnRef = useRef<HTMLButtonElement>(null);
   const accessBtnRef = useRef<HTMLButtonElement>(null);
 
   // Global store
@@ -99,6 +173,7 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
     setCustomMixActive(false);
     setAudioFallbackActive(false);
     setAccessibilityData(null);
+    setCurrentTime(0);
     announce(`Now exploring ${activeTrack.title}, ${activeTrack.category} sonification.`);
   }, [activeTrack.id, activeTrack.audioSrc, activeTrack.title, activeTrack.category, announce]);
 
@@ -122,7 +197,7 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
     audioGraph.setTactile(tactileEnabled, tactileCutoff);
   }, [tactileEnabled, tactileCutoff, audioGraph]);
 
-  // Play procedural earcons based on setting
+  // Procedural earcons based on setting
   const triggerEarcon = useCallback(
     (type: 'play' | 'pause' | 'tab' | 'success' | 'alert') => {
       if (earconsSetting === 'off') return;
@@ -139,36 +214,56 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
     haptics.triggerHaptic('tick');
   }, [earconsSetting, audioGraph, haptics]);
 
-  // Handle Escape key to dismiss drawers and return focus
+  // Apply mood preset
+  const handleApplyPreset = (preset: typeof TUNING.presets[0]) => {
+    setActivePreset(preset.name);
+    setEqBass(preset.bass);
+    setEqMid(preset.mid);
+    setEqHigh(preset.high);
+    setDustVolume(preset.dust);
+    setSaltVolume(preset.salt);
+    setSmokeVolume(preset.smoke);
+    setSulfateVolume(preset.sulfate);
+    triggerDetent();
+    announce(`Applied ${preset.name} acoustic mood preset.`);
+  };
+
+  // Keyboard navigation & global shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && activeDrawer !== null) {
-        const closed = activeDrawer;
-        setActiveDrawer(null);
-        if (closed === 'science') {
-          accessibilityBtnRef.current?.focus();
-          announce('Closed Scientific Interpretation and Audio Legend panel.');
-        } else if (closed === 'mixer') {
-          mixerBtnRef.current?.focus();
-          announce('Closed Constituent Layer Synthesizer panel.');
-        } else if (closed === 'space') {
-          spaceBtnRef.current?.focus();
-          announce('Closed Spatial Audio panel.');
-        } else if (closed === 'access') {
-          accessBtnRef.current?.focus();
-          announce('Closed Accessibility Settings panel.');
+      // Don't trigger hotkeys if user is focused on an input or textarea
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+      if (e.key === 'Escape') {
+        if (shortcutsOpen) {
+          setShortcutsOpen(false);
+          announce('Closed keyboard shortcuts dialog.');
         }
-      } else if (e.key === ' ' && (e.target as HTMLElement).tagName !== 'INPUT') {
-        // Spacebar plays/pauses when not typing
+      } else if (e.key === ' ') {
         e.preventDefault();
         handlePlayToggle();
-      } else if ((e.key === 'm' || e.key === 'M') && (e.target as HTMLElement).tagName !== 'INPUT') {
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
         handleToggleMute();
+      } else if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        const desc = accessibilityData?.plain_language_summary || activeTrack.description;
+        speech.toggleSpeak(`${activeTrack.title}. ${desc}`);
+      } else if (e.key === '1') {
+        handleSelectTab('mix');
+      } else if (e.key === '2') {
+        handleSelectTab('move');
+      } else if (e.key === '3') {
+        handleSelectTab('learn');
+      } else if (e.key === '4') {
+        handleSelectTab('access');
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeDrawer, announce]);
+  }, [shortcutsOpen, accessibilityData, activeTrack, speech, announce]);
 
   // Reload audio on source update
   useEffect(() => {
@@ -203,7 +298,21 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
     }
   };
 
-  // Handle Play/Pause
+  // Duration metadata handler (Resolves the 0:12 vs 3:00 mismatch)
+  const handleLoadedMetadata = () => {
+    if (
+      audioRef.current &&
+      isFinite(audioRef.current.duration) &&
+      !isNaN(audioRef.current.duration) &&
+      audioRef.current.duration > 0
+    ) {
+      setDuration(audioRef.current.duration);
+    } else {
+      setDuration(12);
+    }
+  };
+
+  // Handle Master Play/Pause
   const handlePlayToggle = async () => {
     if (audioRef.current) {
       audioGraph.initGraph(audioRef.current);
@@ -235,7 +344,11 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
   const handleTimeUpdate = () => {
     if (audioRef.current) {
       setCurrentTime(audioRef.current.currentTime);
-      if (audioRef.current.duration && !isNaN(audioRef.current.duration)) {
+      if (
+        isFinite(audioRef.current.duration) &&
+        !isNaN(audioRef.current.duration) &&
+        audioRef.current.duration > 0
+      ) {
         setDuration(audioRef.current.duration);
       }
     }
@@ -278,20 +391,16 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
     }
   };
 
-  // Drawer Toggle Handlers
-  const handleToggleMixer = () => {
-    const next = activeDrawer === 'mixer' ? null : 'mixer';
-    setActiveDrawer(next);
+  // Tab Selection
+  const handleSelectTab = async (tab: ConsoleTab) => {
+    setActiveTab(tab);
     triggerEarcon('tab');
-    announce(next ? 'Opened Constituent Layer Synthesizer panel.' : 'Closed Constituent Layer Synthesizer panel.');
-  };
-
-  const handleToggleScience = async () => {
-    const next = activeDrawer === 'science' ? null : 'science';
-    setActiveDrawer(next);
-    triggerEarcon('tab');
-    if (next) {
-      announce('Opened Scientific Interpretation and Audio Legend panel.');
+    if (tab === 'mix') {
+      announce('Switched to Mix panel.');
+    } else if (tab === 'move') {
+      announce('Switched to Move panel.');
+    } else if (tab === 'learn') {
+      announce('Switched to Learn panel.');
       if (!accessibilityData) {
         try {
           const res = await insightsService.getAccessibility(activeTrack.id);
@@ -303,26 +412,36 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
           // Gracefully handled
         }
       }
-    } else {
-      announce('Closed Scientific Interpretation and Audio Legend panel.');
+    } else if (tab === 'access') {
+      announce('Switched to Accessibility panel.');
     }
   };
 
-  const handleToggleSpace = () => {
-    const next = activeDrawer === 'space' ? null : 'space';
-    setActiveDrawer(next);
-    triggerEarcon('tab');
-    announce(next ? 'Opened 2D Planetary Sound Field panel.' : 'Closed 2D Planetary Sound Field panel.');
+  // Arrow key roving tabindex navigation for Apple-style segmented tabs
+  const handleTabKeyDown = (e: React.KeyboardEvent, currentTab: ConsoleTab) => {
+    const tabList: ConsoleTab[] = ['mix', 'move', 'learn', 'access'];
+    const idx = tabList.indexOf(currentTab);
+
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      const nextTab = tabList[(idx + 1) % tabList.length] ?? 'mix';
+      handleSelectTab(nextTab);
+      if (nextTab === 'mix') mixerBtnRef.current?.focus();
+      if (nextTab === 'move') spaceBtnRef.current?.focus();
+      if (nextTab === 'learn') accessibilityBtnRef.current?.focus();
+      if (nextTab === 'access') accessBtnRef.current?.focus();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const prevTab = tabList[(idx - 1 + tabList.length) % tabList.length] ?? 'mix';
+      handleSelectTab(prevTab);
+      if (prevTab === 'mix') mixerBtnRef.current?.focus();
+      if (prevTab === 'move') spaceBtnRef.current?.focus();
+      if (prevTab === 'learn') accessibilityBtnRef.current?.focus();
+      if (prevTab === 'access') accessBtnRef.current?.focus();
+    }
   };
 
-  const handleToggleAccess = () => {
-    const next = activeDrawer === 'access' ? null : 'access';
-    setActiveDrawer(next);
-    triggerEarcon('tab');
-    announce(next ? 'Opened Accessibility Settings panel.' : 'Closed Accessibility Settings panel.');
-  };
-
-  // Ping Telemetry API
+  // Ping Telemetry API (5th button capability preserved with clear label)
   const handlePingTelemetry = async () => {
     setHealthStatus('checking');
     triggerDetent();
@@ -340,6 +459,58 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
     }
   };
 
+  // Master 16-bit MediaRecorder Capture
+  const handleToggleRecord = () => {
+    if (isRecording) {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+        setIsRecording(false);
+        announce('Master audio recording completed. Ready for download.');
+      }
+    } else {
+      const streamDest = audioGraph.getStreamDestination();
+      if (!streamDest || !streamDest.stream) {
+        announce('Audio stream not available for recording.');
+        return;
+      }
+
+      try {
+        audioChunksRef.current = [];
+        const recorder = new MediaRecorder(streamDest.stream);
+        mediaRecorderRef.current = recorder;
+
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) {
+            audioChunksRef.current.push(e.data);
+          }
+        };
+
+        recorder.onstop = () => {
+          const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const url = URL.createObjectURL(blob);
+          setRecordedBlobUrl(url);
+        };
+
+        recorder.start();
+        setIsRecording(true);
+        announce('Started recording 16-bit master soundscape...');
+      } catch {
+        announce('MediaRecorder not supported by this browser.');
+      }
+    }
+  };
+
+  const handleDownloadRecord = () => {
+    if (!recordedBlobUrl) return;
+    const a = document.createElement('a');
+    a.href = recordedBlobUrl;
+    a.download = `NASA_Earth_Song_${activeTrack.id}_master.webm`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    announce(`Downloaded master audio recording for ${activeTrack.title}.`);
+  };
+
   // Test tactile pulse
   const handleTestTactilePulse = () => {
     triggerDetent();
@@ -348,14 +519,14 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
   };
 
   const formatTime = (sec: number) => {
-    if (isNaN(sec) || sec < 0) return '0:00';
+    if (isNaN(sec) || !isFinite(sec) || sec < 0) return '0:12';
     const mins = Math.floor(sec / 60);
     const secs = Math.floor(sec % 60);
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
   return (
-    <div className="relative z-30 mx-auto w-full max-w-6xl px-4 pb-24 sm:px-6">
+    <div id="audio-dock-console" className="relative z-30 mx-auto w-full max-w-6xl px-4 pb-20 sm:px-6">
       {/* Screen Reader Live Region for Dynamic Announcements */}
       <div
         role="status"
@@ -366,21 +537,28 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
         {announcement}
       </div>
 
+      {/* Hidden Audio Player */}
       <audio
         ref={audioRef}
         src={activeAudioSource}
         loop
+        onLoadedMetadata={handleLoadedMetadata}
         onTimeUpdate={handleTimeUpdate}
         onError={handleAudioError}
       />
 
-      {/* Floating Apple Music Frosted-Glass Studio Deck */}
-      <div className="apple-glass relative overflow-hidden rounded-3xl border border-white/10 p-6 shadow-2xl backdrop-blur-2xl sm:p-8 md:p-10 transition-all duration-300">
-        <div className="grid grid-cols-1 items-stretch gap-8 lg:grid-cols-12">
+      {/* ─────────────────────────────────────────────────────────────
+          ONE FIXED-HEIGHT GLASS CONSOLE CONTAINER
+          Zero layout shift across all tabs on desktop.
+          ───────────────────────────────────────────────────────────── */}
+      <div
+        className="apple-glass relative overflow-hidden rounded-3xl border border-white/10 p-5 shadow-2xl backdrop-blur-2xl sm:p-7 md:p-8 h-auto lg:h-[78vh] lg:min-h-[560px] lg:max-h-[720px]"
+      >
+        <div className="grid h-full grid-cols-1 items-stretch gap-6 lg:grid-cols-12 overflow-hidden">
           {/* ─────────────────────────────────────────────────────────────
-              LEFT COLUMN: LARGE CONTINUOUSLY ANIMATED VISUALIZER
+              LEFT PANE = "LISTEN" (~45% width, fills full card height)
               ───────────────────────────────────────────────────────────── */}
-          <div className="lg:col-span-5 flex flex-col">
+          <div className="h-full flex flex-col lg:col-span-5 min-h-[320px] lg:min-h-0">
             <ConsoleVisualizer
               activeTrack={activeTrack}
               isPlaying={isPlaying}
@@ -389,374 +567,418 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
               customMixActive={customMixActive}
               spaceX={spaceX}
               spaceY={spaceY}
+              onTogglePlay={handlePlayToggle}
+              currentTime={currentTime}
+              duration={duration}
+              onScrub={handleScrub}
+              formatTime={formatTime}
+              onDetentTick={triggerDetent}
             />
           </div>
 
           {/* ─────────────────────────────────────────────────────────────
-              RIGHT COLUMN: TRANSPORT, EQ, AND EXPANDABLE PANELS
+              RIGHT PANE = "SHAPE THE SOUND" (~55% width)
               ───────────────────────────────────────────────────────────── */}
-          <div className="flex flex-col justify-between gap-6 lg:col-span-7">
-            {/* Header: Track title, Play button & Action Pill Cluster */}
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.25em] text-sky-400 sm:text-xs">
-                  {activeTrack.category}
+          <div className="h-full flex flex-col justify-between gap-3.5 lg:col-span-7 overflow-hidden">
+            {/* ─────────────────────────────────────────────────────────
+                1. PICK A MOOD (Always visible above the tabs)
+                ───────────────────────────────────────────────────────── */}
+            <div className="shrink-0 select-none">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-slate-300">
+                  Pick a mood
                 </span>
-                <h4
-                  title={activeTrack.title}
-                  className="special-font font-zentry mt-1 text-2xl font-black uppercase text-white tracking-tight sm:text-3xl md:text-4xl line-clamp-1 drop-shadow-md"
-                >
-                  {activeTrack.title}
-                </h4>
+                <span className="font-mono text-[9px] text-slate-500 uppercase">
+                  Harmonic Presets
+                </span>
               </div>
 
-              {/* Master Play Pill & Drawer Action Cluster */}
-              <div className="flex items-center gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {TUNING.presets.map((preset) => {
+                  const Icon = preset.icon;
+                  const isActive = activePreset === preset.name;
+                  return (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => handleApplyPreset(preset)}
+                      className={`group flex items-center justify-center gap-1.5 rounded-2xl border px-3 py-2 text-xs font-semibold tracking-wide transition-all active:scale-95 ${
+                        isActive
+                          ? 'border-sky-400 bg-sky-500/25 text-white shadow-[0_0_15px_rgba(56,189,248,0.3)]'
+                          : 'border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      <Icon
+                        className={`size-3.5 transition-transform group-hover:scale-110 ${
+                          isActive ? 'text-sky-300' : 'text-slate-400 group-hover:text-white'
+                        }`}
+                      />
+                      <span className="truncate">{preset.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ─────────────────────────────────────────────────────────
+                2. LABELED TABS (Apple-Style Segmented Control)
+                Roving tabindex, role="tablist", arrow-key navigation
+                ───────────────────────────────────────────────────────── */}
+            <div
+              role="tablist"
+              aria-label="Sound manipulation and science tabs"
+              className="shrink-0 flex items-center rounded-2xl border border-white/10 bg-black/40 p-1 backdrop-blur-md"
+            >
+              {/* MIX TAB */}
+              <button
+                ref={mixerBtnRef}
+                type="button"
+                role="tab"
+                id="tab-mix"
+                aria-selected={activeTab === 'mix'}
+                aria-controls="constituent-mixer-panel"
+                tabIndex={activeTab === 'mix' ? 0 : -1}
+                onClick={() => handleSelectTab('mix')}
+                onKeyDown={(e) => handleTabKeyDown(e, 'mix')}
+                aria-label="Mix: Toggle Constituent Layer Synthesizer Mixer"
+                aria-expanded={activeTab === 'mix'}
+                className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2 text-xs font-semibold uppercase tracking-wider transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 active:scale-95 ${
+                  activeTab === 'mix'
+                    ? 'border border-white/15 bg-white/15 text-white shadow-lg backdrop-blur-md'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <SlidersHorizontal className="size-3.5 text-sky-400" />
+                <span>Mix</span>
+              </button>
+
+              {/* MOVE TAB */}
+              <button
+                ref={spaceBtnRef}
+                type="button"
+                role="tab"
+                id="tab-move"
+                aria-selected={activeTab === 'move'}
+                aria-controls="space-audio-panel"
+                tabIndex={activeTab === 'move' ? 0 : -1}
+                onClick={() => handleSelectTab('move')}
+                onKeyDown={(e) => handleTabKeyDown(e, 'move')}
+                aria-label="Move: Toggle Spatial Audio and Planetary Field"
+                aria-expanded={activeTab === 'move'}
+                className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2 text-xs font-semibold uppercase tracking-wider transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 active:scale-95 ${
+                  activeTab === 'move'
+                    ? 'border border-white/15 bg-white/15 text-white shadow-lg backdrop-blur-md'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Compass className="size-3.5 text-sky-400" />
+                <span>Move</span>
+              </button>
+
+              {/* LEARN TAB */}
+              <button
+                ref={accessibilityBtnRef}
+                type="button"
+                role="tab"
+                id="tab-learn"
+                aria-selected={activeTab === 'learn'}
+                aria-controls="science-legend-panel"
+                tabIndex={activeTab === 'learn' ? 0 : -1}
+                onClick={() => handleSelectTab('learn')}
+                onKeyDown={(e) => handleTabKeyDown(e, 'learn')}
+                aria-label="Learn: Toggle Scientific Interpretation & Audio Legend"
+                aria-expanded={activeTab === 'learn'}
+                className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2 text-xs font-semibold uppercase tracking-wider transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 active:scale-95 ${
+                  activeTab === 'learn'
+                    ? 'border border-white/15 bg-white/15 text-white shadow-lg backdrop-blur-md'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <BookOpen className="size-3.5 text-amber-400" />
+                <span>Learn</span>
+              </button>
+
+              {/* ACCESS TAB */}
+              <button
+                ref={accessBtnRef}
+                type="button"
+                role="tab"
+                id="tab-access"
+                aria-selected={activeTab === 'access'}
+                aria-controls="access-settings-panel"
+                tabIndex={activeTab === 'access' ? 0 : -1}
+                onClick={() => handleSelectTab('access')}
+                onKeyDown={(e) => handleTabKeyDown(e, 'access')}
+                aria-label="Access: Toggle Accessibility & Sensory Settings"
+                aria-expanded={activeTab === 'access'}
+                className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2 text-xs font-semibold uppercase tracking-wider transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 active:scale-95 ${
+                  activeTab === 'access'
+                    ? 'border border-white/15 bg-white/15 text-white shadow-lg backdrop-blur-md'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Accessibility className="size-3.5 text-emerald-400" />
+                <span>Access</span>
+              </button>
+            </div>
+
+            {/* ─────────────────────────────────────────────────────────
+                3. SCROLLABLE TAB PANEL AREA (Internal Scroll with data-lenis-prevent)
+                ───────────────────────────────────────────────────────── */}
+            <div
+              data-lenis-prevent
+              tabIndex={0}
+              className="flex-1 overflow-y-auto pr-1 rounded-2xl scrollbar-thin scrollbar-thumb-white/15 focus:outline-none"
+            >
+              {activeTab === 'mix' && (
+                <MixerPanel
+                  activeTrack={activeTrack}
+                  eqBass={eqBass}
+                  setEqBass={setEqBass}
+                  eqMid={eqMid}
+                  setEqMid={setEqMid}
+                  eqHigh={eqHigh}
+                  setEqHigh={setEqHigh}
+                  dustVolume={dustVolume}
+                  setDustVolume={setDustVolume}
+                  saltVolume={saltVolume}
+                  setSaltVolume={setSaltVolume}
+                  smokeVolume={smokeVolume}
+                  setSmokeVolume={setSmokeVolume}
+                  sulfateVolume={sulfateVolume}
+                  setSulfateVolume={setSulfateVolume}
+                  onSynthesizeMix={handleSynthesizeMix}
+                  isSynthesizing={isSynthesizing}
+                  customMixActive={customMixActive}
+                  onDetentTick={triggerDetent}
+                />
+              )}
+
+              {activeTab === 'move' && (
+                <SpacePanel
+                  activeTrack={activeTrack}
+                  spaceX={spaceX}
+                  setSpaceX={setSpaceX}
+                  spaceY={spaceY}
+                  setSpaceY={setSpaceY}
+                  atmosphereReverb={atmosphereReverb}
+                  setAtmosphereReverb={setAtmosphereReverb}
+                  onDetentTick={triggerDetent}
+                  onAnnounce={announce}
+                />
+              )}
+
+              {activeTab === 'learn' && (
+                <SciencePanel
+                  activeTrack={activeTrack}
+                  accessibilityData={accessibilityData}
+                  isSpeaking={speech.isSpeaking}
+                  onToggleSpeech={speech.toggleSpeak}
+                />
+              )}
+
+              {activeTab === 'access' && (
+                <AccessPanel
+                  activeTrack={activeTrack}
+                  earconsSetting={earconsSetting}
+                  setEarconsSetting={setEarconsSetting}
+                  hapticsEnabled={haptics.isEnabled}
+                  setHapticsEnabled={haptics.setIsEnabled}
+                  hapticsSupported={haptics.isSupported}
+                  tactileEnabled={tactileEnabled}
+                  setTactileEnabled={setTactileEnabled}
+                  tactileCutoff={tactileCutoff}
+                  setTactileCutoff={setTactileCutoff}
+                  onTestTactilePulse={handleTestTactilePulse}
+                  onOpenShortcuts={() => setShortcutsOpen(true)}
+                  onAnnounce={announce}
+                  onDetentTick={triggerDetent}
+                />
+              )}
+            </div>
+
+            {/* ─────────────────────────────────────────────────────────
+                4. FOOTER ACTION ROW
+                Clearly labeled action buttons & compact status chip
+                ───────────────────────────────────────────────────────── */}
+            <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.08] pt-3 text-[11px] select-none">
+              {/* Left: Stream Status Chip & Mute Toggle */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+                  <span
+                    className={`size-2 rounded-full ${
+                      audioFallbackActive
+                        ? 'bg-amber-400'
+                        : 'animate-pulse bg-emerald-400'
+                    }`}
+                  />
+                  <span className="font-mono text-[9px] sm:text-[10px] text-slate-300">
+                    {customMixActive
+                      ? 'NASA Custom DSP (16-bit PCM)'
+                      : audioFallbackActive
+                      ? 'PRANA Standby Loop'
+                      : 'Streaming NASA data · 16-bit stereo'}
+                  </span>
+                </div>
+
                 <button
                   type="button"
-                  onClick={handlePlayToggle}
-                  aria-label={
-                    isPlaying
-                      ? `Pause soundscape: ${activeTrack.title}`
-                      : `Play soundscape: ${activeTrack.title}`
-                  }
-                  className="group relative inline-flex items-center gap-2.5 rounded-full border border-white/20 bg-white/10 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-lg backdrop-blur-md transition-all hover:border-sky-400/60 hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 active:scale-95"
+                  onClick={handleToggleMute}
+                  aria-label={isMuted ? 'Unmute audio soundscape' : 'Mute audio soundscape'}
+                  aria-pressed={isMuted}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[10px] text-slate-300 transition-colors hover:border-sky-400/50 hover:bg-sky-500/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
                 >
-                  {isPlaying ? (
+                  {isMuted ? (
                     <>
-                      <Pause className="size-4 fill-current text-sky-400" />
-                      <span>Pause Soundscape</span>
-                      <span className="absolute -inset-0.5 animate-ping rounded-full border border-sky-400/40 opacity-60" />
+                      <VolumeX className="size-3 text-amber-400" />
+                      <span>AUDIO MUTED</span>
                     </>
                   ) : (
                     <>
-                      <Play className="size-4 fill-current text-white group-hover:text-sky-300" />
-                      <span>Hear Earth Audio</span>
+                      <Volume2 className="size-3 text-sky-400" />
+                      <span>AUDIO LIVE</span>
                     </>
                   )}
                 </button>
+              </div>
 
-                {/* Toggle Constituent Harmonic Mixer */}
-                <button
-                  ref={mixerBtnRef}
-                  type="button"
-                  onClick={handleToggleMixer}
-                  aria-expanded={activeDrawer === 'mixer'}
-                  aria-controls="constituent-mixer-panel"
-                  aria-label="Toggle Constituent Layer Synthesizer Mixer"
-                  className={`inline-flex size-10 items-center justify-center rounded-full border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 active:scale-95 ${
-                    activeDrawer === 'mixer' || customMixActive
-                      ? 'border-sky-400 bg-sky-500/20 text-sky-300 shadow-[0_0_12px_rgba(56,189,248,0.3)]'
-                      : 'border-white/15 bg-black/40 text-slate-300 hover:border-sky-400/60 hover:text-white'
-                  }`}
-                  title="Constituent Harmonic Mixer"
-                >
-                  <Sliders className="size-4" />
-                </button>
+              {/* Right: Record Master, Diagnostic Ping & Keyboard Shortcuts Trigger */}
+              <div className="flex items-center gap-2">
+                {/* 1. Master 16-bit Recorder */}
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleToggleRecord}
+                    aria-label={isRecording ? 'Stop recording master audio' : 'Record 16-bit master audio'}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase transition-all ${
+                      isRecording
+                        ? 'border-red-400 bg-red-500/20 text-red-200 animate-pulse'
+                        : 'border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:text-white'
+                    }`}
+                  >
+                    <Disc className={`size-3 ${isRecording ? 'text-red-400 animate-spin' : 'text-slate-400'}`} />
+                    <span>{isRecording ? 'Recording...' : 'Record Master'}</span>
+                  </button>
 
-                {/* Toggle Spatial 2D Audio */}
-                <button
-                  ref={spaceBtnRef}
-                  type="button"
-                  onClick={handleToggleSpace}
-                  aria-expanded={activeDrawer === 'space'}
-                  aria-controls="space-audio-panel"
-                  aria-label="Toggle Spatial Audio and Planetary Field"
-                  className={`inline-flex size-10 items-center justify-center rounded-full border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 active:scale-95 ${
-                    activeDrawer === 'space'
-                      ? 'border-sky-400 bg-sky-500/20 text-sky-300 shadow-[0_0_12px_rgba(56,189,248,0.3)]'
-                      : 'border-white/15 bg-black/40 text-slate-300 hover:border-sky-400/60 hover:text-white'
-                  }`}
-                  title="Spatial 2D Earth Field"
-                >
-                  <Compass className="size-4" />
-                </button>
+                  {recordedBlobUrl && (
+                    <button
+                      type="button"
+                      onClick={handleDownloadRecord}
+                      aria-label="Download master recorded audio WAV"
+                      className="inline-flex items-center gap-1 rounded-full border border-emerald-400/50 bg-emerald-500/20 px-2.5 py-1 font-mono text-[10px] font-semibold uppercase text-emerald-300 hover:bg-emerald-500/30 transition-colors"
+                    >
+                      <Download className="size-3" />
+                      <span>Save</span>
+                    </button>
+                  )}
+                </div>
 
-                {/* Science Legend & Accessibility */}
-                <button
-                  ref={accessibilityBtnRef}
-                  type="button"
-                  onClick={handleToggleScience}
-                  aria-expanded={activeDrawer === 'science'}
-                  aria-controls="science-legend-panel"
-                  aria-label="Toggle Scientific Interpretation & Audio Legend"
-                  className={`inline-flex size-10 items-center justify-center rounded-full border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 active:scale-95 ${
-                    activeDrawer === 'science'
-                      ? 'border-amber-400 bg-amber-500/20 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
-                      : 'border-white/15 bg-black/40 text-slate-300 hover:border-amber-400/60 hover:text-white'
-                  }`}
-                  title="Science Legend & Audio Narrative"
-                >
-                  <Info className="size-4" />
-                </button>
-
-                {/* Access & Sensory Settings */}
-                <button
-                  ref={accessBtnRef}
-                  type="button"
-                  onClick={handleToggleAccess}
-                  aria-expanded={activeDrawer === 'access'}
-                  aria-controls="access-settings-panel"
-                  aria-label="Toggle Accessibility & Sensory Settings"
-                  className={`inline-flex size-10 items-center justify-center rounded-full border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 active:scale-95 ${
-                    activeDrawer === 'access'
-                      ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.3)]'
-                      : 'border-white/15 bg-black/40 text-slate-300 hover:border-emerald-400/60 hover:text-white'
-                  }`}
-                  title="Accessibility & Sensory Feeds"
-                >
-                  <Accessibility className="size-4" />
-                </button>
-
-                {/* Diagnostic Telemetry Health Ping */}
+                {/* 2. Diagnostic Telemetry Health Ping */}
                 <button
                   type="button"
                   onClick={handlePingTelemetry}
                   aria-label="Ping NASA Telemetry Diagnostic Bus"
-                  className="inline-flex size-10 items-center justify-center rounded-full border border-white/15 bg-black/40 text-slate-300 transition-all hover:border-emerald-400/60 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 active:scale-95"
                   title="NASA Telemetry Bus Diagnostic"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[10px] text-slate-300 transition-colors hover:border-emerald-400/50 hover:bg-emerald-500/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 active:scale-95"
                 >
                   {healthStatus === 'healthy' ? (
-                    <ShieldCheck className="size-4 text-emerald-400" />
+                    <>
+                      <ShieldCheck className="size-3 text-emerald-400" />
+                      <span className="text-emerald-300 font-semibold">Bus: Healthy</span>
+                    </>
                   ) : (
-                    <Activity
-                      className={`size-4 ${
-                        healthStatus === 'checking' ? 'animate-spin text-sky-400' : 'text-slate-400'
-                      }`}
-                    />
+                    <>
+                      <Activity
+                        className={`size-3 ${
+                          healthStatus === 'checking' ? 'animate-spin text-sky-400' : 'text-slate-400'
+                        }`}
+                      />
+                      <span>Telemetry Bus</span>
+                    </>
                   )}
                 </button>
+
+                {/* 3. Keyboard Shortcuts Popover Trigger */}
+                <button
+                  type="button"
+                  onClick={() => setShortcutsOpen(true)}
+                  aria-label="View keyboard shortcuts"
+                  title="Keyboard shortcuts (?)"
+                  className="inline-flex size-7 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-400 transition-colors hover:border-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                >
+                  <HelpCircle className="size-3.5" />
+                </button>
               </div>
-            </div>
-
-            {/* Scrubbing Audio Timeline */}
-            <div className="space-y-1">
-              <input
-                type="range"
-                min="0"
-                max={duration || 180}
-                value={currentTime}
-                onChange={(e) => handleScrub(Number(e.target.value))}
-                aria-label="Audio timeline position"
-                aria-valuenow={Math.round(currentTime)}
-                aria-valuemin={0}
-                aria-valuemax={Math.round(duration || 180)}
-                aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
-                className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-sky-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-              />
-              <div className="flex justify-between font-mono text-[10px] text-slate-500">
-                <span>{formatTime(currentTime)}</span>
-                <span className="text-slate-400">
-                  {duration ? formatTime(duration) : 'LIVE STREAM'}
-                </span>
-              </div>
-            </div>
-
-            {/* 3-Band Equalizer Sliders (Low / Mid / High) - Always accessible */}
-            <div className="rounded-2xl border border-white/10 bg-black/30 p-3.5 backdrop-blur-md">
-              <div className="flex items-center justify-between border-b border-white/[0.08] pb-1.5 font-mono text-xs">
-                <div className="flex items-center gap-1.5 text-slate-300">
-                  <Radio className="size-3.5 text-sky-400" />
-                  <span className="font-semibold uppercase tracking-wider text-[11px]">
-                    Live Acoustic Equalizer
-                  </span>
-                </div>
-                <span className="font-mono text-[9px] text-sky-400 uppercase tracking-wider">
-                  Real-Time Web Audio DSP
-                </span>
-              </div>
-
-              <div className="mt-2.5 grid grid-cols-1 gap-3 font-mono text-xs sm:grid-cols-3">
-                <div>
-                  <div className="flex justify-between text-[11px] text-slate-400">
-                    <span>LOW / BASS</span>
-                    <span className="font-bold text-white">{eqBass}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={eqBass}
-                    onChange={(e) => {
-                      setEqBass(Number(e.target.value));
-                      triggerDetent();
-                    }}
-                    aria-label="Bass equalizer"
-                    aria-valuenow={eqBass}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuetext={`${eqBass} percent bass`}
-                    className="mt-1 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-sky-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-[11px] text-slate-400">
-                    <span>MID RESONANCE</span>
-                    <span className="font-bold text-white">{eqMid}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={eqMid}
-                    onChange={(e) => {
-                      setEqMid(Number(e.target.value));
-                      triggerDetent();
-                    }}
-                    aria-label="Midrange resonance equalizer"
-                    aria-valuenow={eqMid}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuetext={`${eqMid} percent midrange`}
-                    className="mt-1 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-sky-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-[11px] text-slate-400">
-                    <span>HIGH SHIMMER</span>
-                    <span className="font-bold text-white">{eqHigh}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={eqHigh}
-                    onChange={(e) => {
-                      setEqHigh(Number(e.target.value));
-                      triggerDetent();
-                    }}
-                    aria-label="High shimmer equalizer"
-                    aria-valuenow={eqHigh}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuetext={`${eqHigh} percent treble shimmer`}
-                    className="mt-1 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-sky-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* ─────────────────────────────────────────────────────────────
-                EXPANDABLE DRAWER PANELS (Mixer / Space / Science / Access)
-                ───────────────────────────────────────────────────────────── */}
-            {activeDrawer === 'mixer' && (
-              <MixerPanel
-                activeTrack={activeTrack}
-                setEqBass={setEqBass}
-                setEqMid={setEqMid}
-                setEqHigh={setEqHigh}
-                dustVolume={dustVolume}
-                setDustVolume={setDustVolume}
-                saltVolume={saltVolume}
-                setSaltVolume={setSaltVolume}
-                smokeVolume={smokeVolume}
-                setSmokeVolume={setSmokeVolume}
-                sulfateVolume={sulfateVolume}
-                setSulfateVolume={setSulfateVolume}
-                onSynthesizeMix={handleSynthesizeMix}
-                isSynthesizing={isSynthesizing}
-                onClose={() => {
-                  setActiveDrawer(null);
-                  mixerBtnRef.current?.focus();
-                  announce('Closed Constituent Layer Synthesizer panel.');
-                }}
-                onApplyPreset={(p) => announce(`Applied ${p} acoustic preset.`)}
-                onDetentTick={triggerDetent}
-              />
-            )}
-
-            {activeDrawer === 'space' && (
-              <SpacePanel
-                activeTrack={activeTrack}
-                spaceX={spaceX}
-                setSpaceX={setSpaceX}
-                spaceY={spaceY}
-                setSpaceY={setSpaceY}
-                atmosphereReverb={atmosphereReverb}
-                setAtmosphereReverb={setAtmosphereReverb}
-                onDetentTick={triggerDetent}
-                onAnnounce={announce}
-              />
-            )}
-
-            {activeDrawer === 'science' && (
-              <SciencePanel
-                activeTrack={activeTrack}
-                accessibilityData={accessibilityData}
-                onClose={() => {
-                  setActiveDrawer(null);
-                  accessibilityBtnRef.current?.focus();
-                  announce('Closed Scientific Interpretation and Audio Legend panel.');
-                }}
-                isSpeaking={speech.isSpeaking}
-                onToggleSpeech={speech.toggleSpeak}
-              />
-            )}
-
-            {activeDrawer === 'access' && (
-              <AccessPanel
-                activeTrack={activeTrack}
-                earconsSetting={earconsSetting}
-                setEarconsSetting={setEarconsSetting}
-                hapticsEnabled={haptics.isEnabled}
-                setHapticsEnabled={haptics.setIsEnabled}
-                hapticsSupported={haptics.isSupported}
-                tactileEnabled={tactileEnabled}
-                setTactileEnabled={setTactileEnabled}
-                tactileCutoff={tactileCutoff}
-                setTactileCutoff={setTactileCutoff}
-                onTestTactilePulse={handleTestTactilePulse}
-                getStreamDestination={audioGraph.getStreamDestination}
-                onAnnounce={announce}
-                onDetentTick={triggerDetent}
-              />
-            )}
-
-            {/* Footer Status Bar */}
-            <div className="flex items-center justify-between border-t border-white/[0.08] pt-3 text-[11px] text-slate-400">
-              <div className="flex items-center gap-2">
-                <span
-                  className={`size-2 rounded-full ${
-                    audioFallbackActive
-                      ? 'bg-amber-400'
-                      : 'animate-pulse bg-emerald-400'
-                  }`}
-                />
-                <span className="font-mono text-[10px]">
-                  {customMixActive
-                    ? 'NASA CUSTOM DSP SYNTHESIS ACTIVE (16-BIT PCM)'
-                    : audioFallbackActive
-                    ? 'LOCAL STANDBY LOOP (PRANA AUDIO ENGINE OFFLINE)'
-                    : activeTrack.audioSrc
-                    ? 'NASA DATA SOUNDSCAPE STREAMING (16-BIT STEREO)'
-                    : 'NASA TELEMETRY BUS ACTIVE'}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={handleToggleMute}
-                aria-label={isMuted ? 'Unmute audio soundscape' : 'Mute audio soundscape'}
-                aria-pressed={isMuted}
-                className="inline-flex items-center gap-1.5 font-mono text-[10px] text-slate-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-              >
-                {isMuted ? (
-                  <>
-                    <VolumeX className="size-3.5 text-amber-400" />
-                    <span>AUDIO MUTED</span>
-                  </>
-                ) : (
-                  <>
-                    <Volume2 className="size-3.5 text-sky-400" />
-                    <span>AUDIO LIVE</span>
-                  </>
-                )}
-              </button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* ─────────────────────────────────────────────────────────────
+          KEYBOARD SHORTCUTS MODAL DIALOG
+          Focus trap, Esc to close, clean Apple glass popover
+          ───────────────────────────────────────────────────────────── */}
+      {shortcutsOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="shortcuts-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md"
+        >
+          <div className="relative w-full max-w-md rounded-3xl border border-white/15 bg-black/85 p-6 shadow-2xl backdrop-blur-2xl text-white">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h4 id="shortcuts-dialog-title" className="text-sm font-bold uppercase tracking-wider text-white">
+                Keyboard Shortcuts Reference
+              </h4>
+              <button
+                type="button"
+                onClick={() => setShortcutsOpen(false)}
+                aria-label="Close shortcuts dialog"
+                className="inline-flex size-7 items-center justify-center rounded-full text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2.5 font-mono text-xs">
+              <div className="rounded-xl border border-white/5 bg-white/5 p-2.5">
+                <span className="font-bold text-sky-300">Space</span>: Play / Pause
+              </div>
+              <div className="rounded-xl border border-white/5 bg-white/5 p-2.5">
+                <span className="font-bold text-sky-300">M</span>: Mute / Unmute
+              </div>
+              <div className="rounded-xl border border-white/5 bg-white/5 p-2.5">
+                <span className="font-bold text-sky-300">S</span>: Speak Description
+              </div>
+              <div className="rounded-xl border border-white/5 bg-white/5 p-2.5">
+                <span className="font-bold text-sky-300">1</span>: Mix Panel
+              </div>
+              <div className="rounded-xl border border-white/5 bg-white/5 p-2.5">
+                <span className="font-bold text-sky-300">2</span>: Move Panel
+              </div>
+              <div className="rounded-xl border border-white/5 bg-white/5 p-2.5">
+                <span className="font-bold text-sky-300">3</span>: Learn Panel
+              </div>
+              <div className="rounded-xl border border-white/5 bg-white/5 p-2.5">
+                <span className="font-bold text-sky-300">4</span>: Access Panel
+              </div>
+              <div className="rounded-xl border border-white/5 bg-white/5 p-2.5">
+                <span className="font-bold text-sky-300">Arrows</span>: 2D Spatial Pad
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShortcutsOpen(false)}
+                className="rounded-full border border-white/20 bg-white/10 px-4 py-1.5 font-mono text-xs font-semibold uppercase text-white hover:bg-white/20 transition-colors"
+              >
+                Close (Esc)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
