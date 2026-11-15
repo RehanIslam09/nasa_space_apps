@@ -22,6 +22,7 @@ interface SpacePanelProps {
   setAtmosphereReverb: (val: number) => void;
   onDetentTick?: () => void;
   onAnnounce?: (msg: string) => void;
+  accentColor?: string;
 }
 
 export function SpacePanel({
@@ -34,6 +35,7 @@ export function SpacePanel({
   setAtmosphereReverb,
   onDetentTick,
   onAnnounce,
+  accentColor: accentColorProp,
 }: SpacePanelProps) {
   const padRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -115,7 +117,7 @@ export function SpacePanel({
     onAnnounce?.('Reset spatial sound field to nadir center.');
   };
 
-  const accentColor = activeTrack?.color?.accent || '#38bdf8';
+  const accentColor = accentColorProp || activeTrack?.color?.accent || '#38bdf8';
 
   return (
     <div
@@ -130,7 +132,7 @@ export function SpacePanel({
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <Compass className="size-4 text-sky-400" />
+            <Compass className="size-4" style={{ color: accentColor }} />
             <h4 className="font-semibold text-sm tracking-wide text-white uppercase">
               Move the sound
             </h4>
@@ -143,10 +145,10 @@ export function SpacePanel({
         <button
           type="button"
           onClick={resetSpace}
-          className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-mono text-slate-300 hover:border-sky-400/50 hover:bg-sky-500/10 hover:text-white transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-mono text-slate-300 hover:border-white/30 hover:bg-white/10 hover:text-white transition-colors"
           title="Reset spatial positioning to center"
         >
-          <RotateCcw className="size-3 text-sky-400" />
+          <RotateCcw className="size-3" style={{ color: accentColor }} />
           <span>Center</span>
         </button>
       </div>
@@ -181,15 +183,25 @@ export function SpacePanel({
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
             onKeyDown={handleKeyDown}
-            className="relative h-44 sm:h-48 w-full cursor-crosshair overflow-hidden rounded-2xl border border-sky-400/30 bg-gradient-to-b from-sky-950/40 via-black/80 to-black/90 p-2 shadow-inner focus:outline-none focus:ring-2 focus:ring-sky-400 select-none"
+            className="relative h-44 sm:h-48 w-full cursor-crosshair overflow-hidden rounded-2xl border p-2 shadow-inner focus:outline-none focus:ring-2 focus:ring-white/40 select-none transition-colors duration-500"
+            style={{
+              borderColor: `${accentColor}4d`,
+              background: `linear-gradient(to bottom, ${accentColor}15, rgba(0, 0, 0, 0.85) 45%, rgba(0, 0, 0, 0.95))`,
+            }}
           >
             {/* Center crosshair lines */}
             <div className="absolute top-1/2 left-0 right-0 h-px bg-white/10" />
             <div className="absolute top-0 bottom-0 left-1/2 w-px bg-white/10" />
 
             {/* Concentric orbital rings */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-20 sm:size-24 rounded-full border border-sky-400/10 pointer-events-none" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-36 sm:size-40 rounded-full border border-sky-400/15 pointer-events-none" />
+            <div
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-20 sm:size-24 rounded-full border pointer-events-none transition-colors duration-500"
+              style={{ borderColor: `${accentColor}26` }}
+            />
+            <div
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-36 sm:size-40 rounded-full border pointer-events-none transition-colors duration-500"
+              style={{ borderColor: `${accentColor}33` }}
+            />
 
             {/* Subtle quadrant coordinate labels */}
             <span className="absolute top-2 left-3 font-mono text-[8px] sm:text-[9px] text-slate-500 uppercase pointer-events-none">
@@ -211,12 +223,22 @@ export function SpacePanel({
               className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-75"
             >
               <div
-                className="size-6 sm:size-7 rounded-full border-2 bg-sky-400/30 shadow-[0_0_18px_rgba(56,189,248,0.8)] backdrop-blur-sm flex items-center justify-center"
-                style={{ borderColor: accentColor }}
+                className="size-6 sm:size-7 rounded-full border-2 backdrop-blur-sm flex items-center justify-center transition-colors duration-300"
+                style={{
+                  borderColor: accentColor,
+                  backgroundColor: `${accentColor}33`,
+                  boxShadow: `0 0 18px ${accentColor}`,
+                }}
               >
                 <div className="size-2 rounded-full bg-white shadow-sm" />
               </div>
-              <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1 rounded bg-black/90 px-1.5 py-0.5 font-mono text-[8px] text-sky-300 border border-sky-400/30 whitespace-nowrap shadow-md">
+              <span
+                className="absolute top-full left-1/2 -translate-x-1/2 mt-1 rounded bg-black/90 px-1.5 py-0.5 font-mono text-[8px] border whitespace-nowrap shadow-md"
+                style={{
+                  borderColor: `${accentColor}4d`,
+                  color: accentColor,
+                }}
+              >
                 {spaceX > 0 ? `+${Math.round(spaceX * 100)}` : Math.round(spaceX * 100)} /{' '}
                 {Math.round((1 - spaceY) * 100)}%
               </span>
@@ -242,7 +264,7 @@ export function SpacePanel({
                   Atmospheric Reverb
                 </span>
               </div>
-              <span className="font-mono text-xs font-bold text-sky-300">
+              <span className="font-mono text-xs font-bold" style={{ color: accentColor }}>
                 {Math.round(atmosphereReverb * 100)}%
               </span>
             </div>
@@ -272,7 +294,7 @@ export function SpacePanel({
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuetext={`${Math.round(atmosphereReverb * 100)} percent atmospheric reverb`}
-                className="relative z-10 h-4 w-full cursor-pointer appearance-none bg-transparent accent-white focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                className="relative z-10 h-4 w-full cursor-pointer appearance-none bg-transparent accent-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
               />
             </div>
             <div className="mt-1 flex justify-between font-mono text-[9px] text-slate-500">
@@ -284,7 +306,7 @@ export function SpacePanel({
           {/* 4 Soundstage Preset Chips */}
           <div className="rounded-2xl border border-white/10 bg-black/40 p-3 backdrop-blur-md">
             <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase text-slate-400 tracking-wider mb-2">
-              <Wind className="size-3 text-sky-400" />
+              <Wind className="size-3" style={{ color: accentColor }} />
               <span>Soundstage Presets:</span>
             </div>
             <div className="grid grid-cols-2 gap-2 font-mono text-[11px]">
@@ -299,9 +321,19 @@ export function SpacePanel({
                 }}
                 className={`rounded-xl border px-2.5 py-1.5 text-center transition-all ${
                   spaceX === 0 && spaceY === 0.7
-                    ? 'border-sky-400 bg-sky-500/20 text-sky-200 font-bold shadow-[0_0_10px_rgba(56,189,248,0.2)]'
-                    : 'border-white/10 bg-white/5 text-slate-300 hover:border-sky-400/40 hover:text-white'
+                    ? 'font-bold'
+                    : 'border-white/10 bg-white/5 text-slate-300 hover:border-white/30 hover:text-white'
                 }`}
+                style={
+                  spaceX === 0 && spaceY === 0.7
+                    ? {
+                        borderColor: accentColor,
+                        backgroundColor: `${accentColor}26`,
+                        color: '#ffffff',
+                        boxShadow: `0 0 10px ${accentColor}33`,
+                      }
+                    : undefined
+                }
               >
                 Ground Station
               </button>
@@ -316,9 +348,19 @@ export function SpacePanel({
                 }}
                 className={`rounded-xl border px-2.5 py-1.5 text-center transition-all ${
                   spaceX === -0.75 && spaceY === 0.3
-                    ? 'border-sky-400 bg-sky-500/20 text-sky-200 font-bold shadow-[0_0_10px_rgba(56,189,248,0.2)]'
-                    : 'border-white/10 bg-white/5 text-slate-300 hover:border-sky-400/40 hover:text-white'
+                    ? 'font-bold'
+                    : 'border-white/10 bg-white/5 text-slate-300 hover:border-white/30 hover:text-white'
                 }`}
+                style={
+                  spaceX === -0.75 && spaceY === 0.3
+                    ? {
+                        borderColor: accentColor,
+                        backgroundColor: `${accentColor}26`,
+                        color: '#ffffff',
+                        boxShadow: `0 0 10px ${accentColor}33`,
+                      }
+                    : undefined
+                }
               >
                 West Limb
               </button>
@@ -333,9 +375,19 @@ export function SpacePanel({
                 }}
                 className={`rounded-xl border px-2.5 py-1.5 text-center transition-all ${
                   spaceX === 0.75 && spaceY === 0.3
-                    ? 'border-sky-400 bg-sky-500/20 text-sky-200 font-bold shadow-[0_0_10px_rgba(56,189,248,0.2)]'
-                    : 'border-white/10 bg-white/5 text-slate-300 hover:border-sky-400/40 hover:text-white'
+                    ? 'font-bold'
+                    : 'border-white/10 bg-white/5 text-slate-300 hover:border-white/30 hover:text-white'
                 }`}
+                style={
+                  spaceX === 0.75 && spaceY === 0.3
+                    ? {
+                        borderColor: accentColor,
+                        backgroundColor: `${accentColor}26`,
+                        color: '#ffffff',
+                        boxShadow: `0 0 10px ${accentColor}33`,
+                      }
+                    : undefined
+                }
               >
                 East Limb
               </button>
@@ -350,9 +402,19 @@ export function SpacePanel({
                 }}
                 className={`rounded-xl border px-2.5 py-1.5 text-center transition-all ${
                   spaceX === 0 && spaceY === 0.1
-                    ? 'border-sky-400 bg-sky-500/20 text-sky-200 font-bold shadow-[0_0_10px_rgba(56,189,248,0.2)]'
-                    : 'border-white/10 bg-white/5 text-slate-300 hover:border-sky-400/40 hover:text-white'
+                    ? 'font-bold'
+                    : 'border-white/10 bg-white/5 text-slate-300 hover:border-white/30 hover:text-white'
                 }`}
+                style={
+                  spaceX === 0 && spaceY === 0.1
+                    ? {
+                        borderColor: accentColor,
+                        backgroundColor: `${accentColor}26`,
+                        color: '#ffffff',
+                        boxShadow: `0 0 10px ${accentColor}33`,
+                      }
+                    : undefined
+                }
               >
                 Exosphere
               </button>

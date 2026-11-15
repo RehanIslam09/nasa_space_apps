@@ -34,6 +34,7 @@ interface MixerPanelProps {
   isSynthesizing: boolean;
   customMixActive?: boolean;
   onDetentTick?: () => void;
+  accentColor?: string;
 }
 
 export function MixerPanel({
@@ -56,6 +57,7 @@ export function MixerPanel({
   isSynthesizing,
   customMixActive = false,
   onDetentTick,
+  accentColor: accentColorProp,
 }: MixerPanelProps) {
   const [accordionOpen, setAccordionOpen] = useState(false);
 
@@ -65,7 +67,7 @@ export function MixerPanel({
     activeTrack.title.toLowerCase().includes('aerosol') ||
     !activeTrack.scientificVariables;
 
-  const accentColor = activeTrack.color.accent || '#38bdf8';
+  const accentColor = accentColorProp || activeTrack.color.accent || '#38bdf8';
 
   return (
     <div
@@ -80,7 +82,7 @@ export function MixerPanel({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <SlidersHorizontal className="size-4 text-sky-400" />
+            <SlidersHorizontal className="size-4" style={{ color: accentColor }} />
             <h4 className="font-semibold text-sm tracking-wide text-white uppercase">
               Tone Balance
             </h4>
@@ -99,7 +101,9 @@ export function MixerPanel({
                 Low / Bass
               </span>
             </div>
-            <span className="font-mono text-xs font-bold text-sky-300">{eqBass}%</span>
+            <span className="font-mono text-xs font-bold" style={{ color: accentColor }}>
+              {eqBass}%
+            </span>
           </div>
           <div className="relative flex items-center">
             <div className="absolute left-0 right-0 h-2 rounded-full bg-white/10 overflow-hidden">
@@ -126,7 +130,7 @@ export function MixerPanel({
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuetext={`${eqBass} percent bass`}
-              className="relative z-10 h-4 w-full cursor-pointer appearance-none bg-transparent accent-white focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+              className="relative z-10 h-4 w-full cursor-pointer appearance-none bg-transparent accent-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
             />
           </div>
         </div>
@@ -140,7 +144,9 @@ export function MixerPanel({
                 Mid Resonance
               </span>
             </div>
-            <span className="font-mono text-xs font-bold text-sky-300">{eqMid}%</span>
+            <span className="font-mono text-xs font-bold" style={{ color: accentColor }}>
+              {eqMid}%
+            </span>
           </div>
           <div className="relative flex items-center">
             <div className="absolute left-0 right-0 h-2 rounded-full bg-white/10 overflow-hidden">
@@ -167,7 +173,7 @@ export function MixerPanel({
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuetext={`${eqMid} percent midrange`}
-              className="relative z-10 h-4 w-full cursor-pointer appearance-none bg-transparent accent-white focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+              className="relative z-10 h-4 w-full cursor-pointer appearance-none bg-transparent accent-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
             />
           </div>
         </div>
@@ -181,7 +187,9 @@ export function MixerPanel({
                 High Shimmer
               </span>
             </div>
-            <span className="font-mono text-xs font-bold text-sky-300">{eqHigh}%</span>
+            <span className="font-mono text-xs font-bold" style={{ color: accentColor }}>
+              {eqHigh}%
+            </span>
           </div>
           <div className="relative flex items-center">
             <div className="absolute left-0 right-0 h-2 rounded-full bg-white/10 overflow-hidden">
@@ -208,7 +216,7 @@ export function MixerPanel({
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuetext={`${eqHigh} percent treble shimmer`}
-              className="relative z-10 h-4 w-full cursor-pointer appearance-none bg-transparent accent-white focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+              className="relative z-10 h-4 w-full cursor-pointer appearance-none bg-transparent accent-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
             />
           </div>
         </div>

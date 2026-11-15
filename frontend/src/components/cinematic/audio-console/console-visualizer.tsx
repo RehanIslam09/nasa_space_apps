@@ -35,6 +35,13 @@ interface ConsoleVisualizerProps {
   onScrub: (val: number) => void;
   formatTime: (sec: number) => string;
   onDetentTick?: () => void;
+  themeColor?: {
+    accent: string;
+    glow: string;
+    nebula?: string;
+    bgTint?: string;
+  };
+  moodEffect?: 'calm' | 'ocean' | 'storm' | 'fever';
 }
 
 export function ConsoleVisualizer({
@@ -51,6 +58,8 @@ export function ConsoleVisualizer({
   onScrub,
   formatTime,
   onDetentTick,
+  themeColor,
+  moodEffect = 'calm',
 }: ConsoleVisualizerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -117,14 +126,30 @@ export function ConsoleVisualizer({
     const handleResize = () => {
       const rect = canvas.getBoundingClientRect();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.scale(dpr, dpr);
+      if (rect.width > 0 && rect.height > 0) {
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+      }
     };
 
     handleResize();
     window.addEventListener('resize', handleResize);
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          canvas.width = Math.round(width * dpr);
+          canvas.height = Math.round(height * dpr);
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.scale(dpr, dpr);
+        }
+      }
+    });
+    resizeObserver.observe(canvas);
 
     const isAudible = isPlaying && !isMuted;
 
@@ -136,6 +161,16 @@ export function ConsoleVisualizer({
         animId = requestAnimationFrame(render);
         return;
       }
+
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const targetW = Math.round(width * dpr);
+      const targetH = Math.round(height * dpr);
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
 
       ctx.clearRect(0, 0, width, height);
 
@@ -158,11 +193,32 @@ export function ConsoleVisualizer({
       const minDim = Math.min(width, height);
       const baseRadius = minDim * 0.38;
 
-      const accentColor = activeTrack.color.accent || '#38bdf8';
-      const glowColor = activeTrack.color.glow || 'rgba(56, 189, 248, 0.4)';
+      const accentColor = themeColor?.accent || activeTrack.color.accent || '#38bdf8';
+      const glowColor = themeColor?.glow || activeTrack.color.glow || 'rgba(56, 189, 248, 0.4)';
 
-      // 1. Soft atmospheric outer corona
-      const atmosphereRadius = baseRadius * 1.35 + (isAudible ? (avgVol / 255) * 18 : Math.sin(phase) * 3);
+      // ─────────────────────────────────────────────────────────────
+      // 1. ATMOSPHERIC CORONA (Dynamic per mood preset)
+      // ─────────────────────────────────────────────────────────────
+      let atmosphereRadius = baseRadius * 1.35;
+      if (moodEffect === 'ocean') {
+        const oceanWave = Math.sin(phase * 1.6) * 6 + Math.cos(phase * 0.8) * 4;
+        atmosphereRadius = baseRadius * 1.4 + (isAudible ? (avgVol / 255) * 20 : oceanWave);
+      } else if (moodEffect === 'storm') {
+        const stormSpike = Math.sin(phase * 4.2) > 0.82 ? 14 : 0;
+        atmosphereRadius =
+          baseRadius * 1.35 +
+          (isAudible ? (avgVol / 255) * 24 : Math.sin(phase * 2.8) * 6 + stormSpike);
+      } else if (moodEffect === 'fever') {
+        const thermalHaze = Math.sin(phase * 2.6) * 8 + Math.sin(phase * 5.2) * 3;
+        atmosphereRadius =
+          baseRadius * 1.45 + (isAudible ? (avgVol / 255) * 26 : thermalHaze);
+      } else {
+        // 'calm' default
+        atmosphereRadius =
+          baseRadius * 1.35 +
+          (isAudible ? (avgVol / 255) * 18 : Math.sin(phase * 1.2) * 4);
+      }
+
       const coronaGrad = ctx.createRadialGradient(
         centerX,
         centerY,
@@ -173,7 +229,7 @@ export function ConsoleVisualizer({
       );
       coronaGrad.addColorStop(0, 'rgba(0, 0, 0, 0.7)');
       coronaGrad.addColorStop(0.5, glowColor);
-      coronaGrad.addColorStop(0.85, 'rgba(56, 189, 248, 0.05)');
+      coronaGrad.addColorStop(0.85, `${accentColor}14`);
       coronaGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
       ctx.fillStyle = coronaGrad;
@@ -181,25 +237,100 @@ export function ConsoleVisualizer({
       ctx.arc(centerX, centerY, atmosphereRadius, 0, Math.PI * 2);
       ctx.fill();
 
-      // 2. Faint concentric orbital perspective rings
-      ctx.save();
-      ctx.translate(centerX, centerY);
-      ctx.scale(1, 0.48); // Perspective tilt
+      // ─────────────────────────────────────────────────────────────
+      // 2. ORBITAL & ATMOSPHERIC RINGS (Dynamic per mood preset)
+      // ─────────────────────────────────────────────────────────────
+      if (moodEffect === 'ocean') {
+        // Deep aquatic ripple rings expanding like sonar waves
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.scale(1, 0.44);
+        const ring1 = baseRadius * (1.12 + Math.sin(phase * 0.9) * 0.04);
+        const ring2 = baseRadius * (1.38 + Math.sin(phase * 0.9 + 1) * 0.05);
+        const ring3 = baseRadius * (1.62 + Math.sin(phase * 0.9 + 2) * 0.06);
 
-      ctx.beginPath();
-      ctx.arc(0, 0, baseRadius * 1.15, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(0, 0, ring1, 0, Math.PI * 2);
+        ctx.strokeStyle = `${accentColor}4d`;
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
 
-      ctx.beginPath();
-      ctx.arc(0, 0, baseRadius * 1.45, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.restore();
+        ctx.beginPath();
+        ctx.arc(0, 0, ring2, 0, Math.PI * 2);
+        ctx.strokeStyle = `${accentColor}2e`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
 
-      // 3. Radial spectrum ring around the planet core
+        ctx.beginPath();
+        ctx.arc(0, 0, ring3, 0, Math.PI * 2);
+        ctx.strokeStyle = `${accentColor}17`;
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+        ctx.restore();
+      } else if (moodEffect === 'storm') {
+        // Gyroscopic dynamic electric storm rings rotating in opposite directions
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(phase * 0.28);
+        ctx.scale(1, 0.42);
+        ctx.beginPath();
+        ctx.arc(0, 0, baseRadius * 1.18, 0, Math.PI * 2);
+        ctx.strokeStyle = `${accentColor}55`;
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(-phase * 0.38);
+        ctx.scale(0.85, 0.55);
+        ctx.beginPath();
+        ctx.arc(0, 0, baseRadius * 1.44, 0, Math.PI * 2);
+        ctx.strokeStyle = `${accentColor}33`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+      } else if (moodEffect === 'fever') {
+        // Thermal heat radiation rings oscillating with thermal shimmer
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.scale(1, 0.46);
+        const heatOsc = Math.sin(phase * 3.2) * 4;
+        ctx.beginPath();
+        ctx.arc(0, 0, baseRadius * 1.16 + heatOsc, 0, Math.PI * 2);
+        ctx.strokeStyle = `${accentColor}4d`;
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(0, 0, baseRadius * 1.46 + heatOsc * 1.5, 0, Math.PI * 2);
+        ctx.strokeStyle = `${accentColor}2e`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        // 'calm' default: Serene concentric circular perspective rings
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.scale(1, 0.48);
+
+        ctx.beginPath();
+        ctx.arc(0, 0, baseRadius * 1.15, 0, Math.PI * 2);
+        ctx.strokeStyle = `${accentColor}33`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(0, 0, baseRadius * 1.45, 0, Math.PI * 2);
+        ctx.strokeStyle = `${accentColor}1a`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // ─────────────────────────────────────────────────────────────
+      // 3. RADIAL SPECTRUM SPOKES (Dynamic per mood preset)
+      // ─────────────────────────────────────────────────────────────
       const spokes = TUNING.orb.spokeCount;
       const angleStep = (Math.PI * 2) / spokes;
       const innerRingRadius = baseRadius * TUNING.orb.spectrumInnerRatio;
@@ -209,12 +340,62 @@ export function ConsoleVisualizer({
         const angle = i * angleStep + driftOffset;
         const freqVal = freqData[i % freqData.length] || 0;
 
-        const idlePulse = prefersReducedMotion
-          ? 6
-          : Math.sin(phase * TUNING.orb.idleBreathingSpeed + i * 0.25) * 5 + 6;
-        const spokeLen = isAudible
-          ? (freqVal / 255) * (baseRadius * TUNING.orb.activeSpokeScale) + 4
-          : idlePulse;
+        let spokeLen = 6;
+        let strokeColor = isAudible ? accentColor : `${accentColor}99`;
+        let spokeBlur = isAudible ? 8 : 3;
+        let spokeShadow = glowColor;
+
+        if (moodEffect === 'ocean') {
+          const tidalSwell =
+            (Math.sin(phase * 1.8 + i * 0.2) + Math.cos(phase * 0.9 + i * 0.35)) * 4 + 7;
+          spokeLen = isAudible
+            ? (freqVal / 255) * (baseRadius * 0.56) + 4
+            : prefersReducedMotion
+            ? 6
+            : tidalSwell;
+          strokeColor = isAudible ? accentColor : `${accentColor}b3`;
+          spokeBlur = isAudible ? 10 : 4;
+        } else if (moodEffect === 'storm') {
+          // Electric lightning discharge spikes
+          const isLightningSpike = (i * 7 + Math.floor(phase * 14)) % 11 === 0;
+          const turbulentPulse =
+            Math.sin(phase * 3.5 + i * 0.4) * 6 + (isLightningSpike ? 16 : 5);
+          spokeLen = isAudible
+            ? (freqVal / 255) * (baseRadius * 0.62) + (isLightningSpike ? 14 : 3)
+            : prefersReducedMotion
+            ? 6
+            : turbulentPulse;
+          strokeColor = isLightningSpike
+            ? '#ffffff'
+            : isAudible
+            ? accentColor
+            : `${accentColor}cc`;
+          spokeShadow = isLightningSpike ? '#ffffff' : glowColor;
+          spokeBlur = isLightningSpike ? 16 : isAudible ? 10 : 4;
+        } else if (moodEffect === 'fever') {
+          // Solar corona flare rays
+          const solarFlare = Math.sin(phase * 5.0 + i * 0.7) > 0.65 ? 10 : 0;
+          const thermalPulse =
+            Math.sin(phase * 2.5 + i * 0.28) * 7 + solarFlare + 6;
+          spokeLen = isAudible
+            ? (freqVal / 255) * (baseRadius * 0.6) + solarFlare + 4
+            : prefersReducedMotion
+            ? 6
+            : thermalPulse;
+          strokeColor =
+            solarFlare > 0 ? '#ffedd5' : isAudible ? accentColor : `${accentColor}b3`;
+          spokeBlur = isAudible ? 12 : 5;
+        } else {
+          // 'calm' default
+          const idlePulse = prefersReducedMotion
+            ? 6
+            : Math.sin(phase * TUNING.orb.idleBreathingSpeed + i * 0.22) * 5 + 6;
+          spokeLen = isAudible
+            ? (freqVal / 255) * (baseRadius * TUNING.orb.activeSpokeScale) + 4
+            : idlePulse;
+          strokeColor = isAudible ? accentColor : 'rgba(255, 255, 255, 0.35)';
+          spokeBlur = isAudible ? 8 : 3;
+        }
 
         const x1 = centerX + Math.cos(angle) * innerRingRadius;
         const y1 = centerY + Math.sin(angle) * innerRingRadius;
@@ -224,14 +405,16 @@ export function ConsoleVisualizer({
         ctx.beginPath();
         ctx.moveTo(x1, y1);
         ctx.lineTo(x2, y2);
-        ctx.strokeStyle = isAudible ? accentColor : 'rgba(255, 255, 255, 0.28)';
+        ctx.strokeStyle = strokeColor;
         ctx.lineWidth = isAudible ? 1.8 : 1.1;
-        ctx.shadowColor = glowColor;
-        ctx.shadowBlur = isAudible ? 8 : 3;
+        ctx.shadowColor = spokeShadow;
+        ctx.shadowBlur = spokeBlur;
         ctx.stroke();
       }
 
-      // 4. Planet-like core sphere
+      // ─────────────────────────────────────────────────────────────
+      // 4. PLANET-LIKE CORE SPHERE (Toned per mood preset)
+      // ─────────────────────────────────────────────────────────────
       const corePulse = isAudible
         ? (avgVol / 255) * 6
         : prefersReducedMotion
@@ -247,29 +430,59 @@ export function ConsoleVisualizer({
         centerY,
         coreRadius
       );
-      planetGrad.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
-      planetGrad.addColorStop(0.35, accentColor);
-      planetGrad.addColorStop(0.75, 'rgba(10, 25, 45, 0.9)');
-      planetGrad.addColorStop(1, 'rgba(2, 6, 18, 0.95)');
+
+      if (moodEffect === 'ocean') {
+        // Deep cyan / marine abyss
+        planetGrad.addColorStop(0, 'rgba(236, 254, 255, 0.75)');
+        planetGrad.addColorStop(0.35, accentColor);
+        planetGrad.addColorStop(0.72, 'rgba(8, 40, 58, 0.92)');
+        planetGrad.addColorStop(1, 'rgba(2, 14, 26, 0.98)');
+      } else if (moodEffect === 'storm') {
+        // High-voltage electric violet plasma
+        planetGrad.addColorStop(0, 'rgba(250, 245, 255, 0.85)');
+        planetGrad.addColorStop(0.3, accentColor);
+        planetGrad.addColorStop(0.7, 'rgba(40, 14, 80, 0.92)');
+        planetGrad.addColorStop(1, 'rgba(14, 3, 30, 0.98)');
+      } else if (moodEffect === 'fever') {
+        // Blazing molten solar flare amber
+        planetGrad.addColorStop(0, 'rgba(255, 251, 235, 0.9)');
+        planetGrad.addColorStop(0.32, accentColor);
+        planetGrad.addColorStop(0.72, 'rgba(85, 22, 6, 0.94)');
+        planetGrad.addColorStop(1, 'rgba(30, 7, 2, 0.98)');
+      } else {
+        // 'calm' default: Serene emerald/mint core
+        planetGrad.addColorStop(0, 'rgba(236, 253, 245, 0.7)');
+        planetGrad.addColorStop(0.35, accentColor);
+        planetGrad.addColorStop(0.72, 'rgba(6, 44, 33, 0.9)');
+        planetGrad.addColorStop(1, 'rgba(2, 20, 15, 0.96)');
+      }
 
       ctx.beginPath();
       ctx.arc(centerX, centerY, coreRadius, 0, Math.PI * 2);
       ctx.fillStyle = planetGrad;
       ctx.shadowColor = glowColor;
-      ctx.shadowBlur = isAudible ? 16 : 8;
+      ctx.shadowBlur = isAudible ? 18 : 8;
       ctx.fill();
 
       // Core rim highlight
       ctx.beginPath();
       ctx.arc(centerX, centerY, coreRadius, 0, Math.PI * 2);
-      ctx.strokeStyle = isAudible ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 255, 255, 0.3)';
+      ctx.strokeStyle = isAudible ? 'rgba(255, 255, 255, 0.75)' : 'rgba(255, 255, 255, 0.35)';
       ctx.lineWidth = 1.2;
       ctx.stroke();
 
       ctx.shadowBlur = 0;
 
       if (!prefersReducedMotion) {
-        phase += isAudible ? 0.04 : 0.018;
+        if (moodEffect === 'storm') {
+          phase += isAudible ? 0.065 : 0.032;
+        } else if (moodEffect === 'fever') {
+          phase += isAudible ? 0.05 : 0.024;
+        } else if (moodEffect === 'ocean') {
+          phase += isAudible ? 0.042 : 0.018;
+        } else {
+          phase += isAudible ? 0.038 : 0.016;
+        }
       }
       animId = requestAnimationFrame(render);
     };
@@ -279,20 +492,26 @@ export function ConsoleVisualizer({
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
     };
-  }, [activeTrack, isPlaying, isMuted, getFrequencyData]);
+  }, [activeTrack, isPlaying, isMuted, getFrequencyData, themeColor, moodEffect]);
 
   // Safely compute percentage for timeline fill track
   const validDuration = duration > 0 && isFinite(duration) ? duration : 12;
   const progressPercent = validDuration > 0 ? Math.min(100, Math.max(0, (currentTime / validDuration) * 100)) : 0;
 
+  const accentColor = themeColor?.accent || activeTrack.color.accent || '#38bdf8';
+  const glowColor = themeColor?.glow || activeTrack.color.glow || 'rgba(56, 189, 248, 0.4)';
+
   return (
     <div
       ref={containerRef}
       onMouseMove={handleMouseMove}
-      className="group relative flex h-full flex-col justify-between overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-sky-950/20 via-black/80 to-black/90 p-5 shadow-2xl backdrop-blur-2xl transition-all duration-300 sm:p-6"
+      className="group relative flex h-full flex-col justify-between overflow-hidden rounded-3xl border p-5 shadow-2xl backdrop-blur-2xl transition-all duration-500 sm:p-6"
       style={{
-        boxShadow: `0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1)`,
+        background: `linear-gradient(to bottom, ${themeColor?.bgTint || 'rgba(12, 74, 110, 0.2)'}, rgba(0, 0, 0, 0.85) 45%, rgba(0, 0, 0, 0.95))`,
+        borderColor: `${accentColor}33`,
+        boxShadow: `0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 30px ${glowColor}1a`,
       }}
     >
       {/* Subtle cursor-follow glass sheen */}
@@ -301,7 +520,7 @@ export function ConsoleVisualizer({
         style={{
           background: `radial-gradient(circle 320px at ${mousePos.x * 100}% ${
             mousePos.y * 100
-          }%, rgba(255, 255, 255, 0.08), transparent 70%)`,
+          }%, ${accentColor}18, transparent 70%)`,
         }}
       />
 
@@ -312,13 +531,16 @@ export function ConsoleVisualizer({
         {/* Small mono label on ONE line */}
         <div className="flex items-center gap-2">
           <span
-            className="size-1.5 rounded-full"
+            className="size-1.5 rounded-full transition-colors duration-500"
             style={{
-              backgroundColor: activeTrack.color.accent || '#38bdf8',
-              boxShadow: `0 0 8px ${activeTrack.color.accent || '#38bdf8'}`,
+              backgroundColor: accentColor,
+              boxShadow: `0 0 8px ${accentColor}`,
             }}
           />
-          <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-sky-400 whitespace-nowrap">
+          <span
+            className="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] whitespace-nowrap transition-colors duration-500"
+            style={{ color: accentColor }}
+          >
             {activeTrack.category || 'Earth Systems Overview'}
           </span>
         </div>
@@ -381,12 +603,12 @@ export function ConsoleVisualizer({
                 ? `Pause soundscape: ${activeTrack.title}`
                 : `Play soundscape: ${activeTrack.title}`
             }
-            className="group relative flex size-16 sm:size-18 items-center justify-center rounded-full border border-white/30 bg-black/60 text-white shadow-[0_0_30px_rgba(0,0,0,0.8)] backdrop-blur-xl transition-all duration-300 hover:scale-105 hover:border-white/60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-400 active:scale-95"
+            className="group relative flex size-16 sm:size-18 items-center justify-center rounded-full border border-white/30 bg-black/60 text-white shadow-[0_0_30px_rgba(0,0,0,0.8)] backdrop-blur-xl transition-all duration-300 hover:scale-105 hover:border-white/60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/40 active:scale-95"
             style={{
-              borderColor: isPlaying ? activeTrack.color.accent : 'rgba(255, 255, 255, 0.4)',
+              borderColor: isPlaying ? accentColor : `${accentColor}80`,
               boxShadow: isPlaying
-                ? `0 0 35px ${activeTrack.color.glow || 'rgba(56, 189, 248, 0.5)'}`
-                : '0 8px 24px rgba(0, 0, 0, 0.6)',
+                ? `0 0 35px ${glowColor}`
+                : `0 8px 24px rgba(0, 0, 0, 0.6), 0 0 15px ${glowColor}33`,
             }}
           >
             {/* Gentle pulse ring before first play or while playing */}
@@ -394,16 +616,19 @@ export function ConsoleVisualizer({
               <>
                 <span
                   className="absolute -inset-1.5 animate-ping rounded-full border opacity-50 pointer-events-none"
-                  style={{ borderColor: activeTrack.color.accent }}
+                  style={{ borderColor: accentColor }}
                 />
                 <Pause className="size-6 fill-current text-white transition-transform group-hover:scale-110" />
               </>
             ) : (
               <>
                 {!hasInteracted && (
-                  <span className="absolute -inset-2 animate-pulse rounded-full border border-sky-400/40 opacity-70 pointer-events-none" />
+                  <span
+                    className="absolute -inset-2 animate-pulse rounded-full border opacity-70 pointer-events-none"
+                    style={{ borderColor: `${accentColor}80` }}
+                  />
                 )}
-                <Play className="ml-1 size-7 fill-current text-white transition-transform group-hover:scale-110 group-hover:text-sky-300" />
+                <Play className="ml-1 size-7 fill-current text-white transition-transform group-hover:scale-110" />
               </>
             )}
           </button>
@@ -430,8 +655,8 @@ export function ConsoleVisualizer({
                 className="h-full rounded-full transition-all duration-75"
                 style={{
                   width: `${progressPercent}%`,
-                  backgroundColor: activeTrack.color.accent || '#38bdf8',
-                  boxShadow: `0 0 8px ${activeTrack.color.accent || '#38bdf8'}`,
+                  backgroundColor: accentColor,
+                  boxShadow: `0 0 8px ${accentColor}`,
                 }}
               />
             </div>
@@ -450,7 +675,7 @@ export function ConsoleVisualizer({
               aria-valuemin={0}
               aria-valuemax={Math.round(validDuration)}
               aria-valuetext={`${formatTime(currentTime)} of ${formatTime(validDuration)}`}
-              className="relative z-10 h-3 w-full cursor-pointer appearance-none bg-transparent accent-white focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+              className="relative z-10 h-3 w-full cursor-pointer appearance-none bg-transparent accent-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
             />
           </div>
 
@@ -466,10 +691,17 @@ export function ConsoleVisualizer({
         <div
           role="region"
           aria-label="Current acoustic soundscape description"
-          className="rounded-xl border border-white/[0.08] bg-black/50 px-3.5 py-2 backdrop-blur-md"
+          className="rounded-xl border bg-black/50 px-3.5 py-2 backdrop-blur-md transition-colors duration-500"
+          style={{ borderColor: `${accentColor}26` }}
         >
-          <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider text-sky-400">
-            <span className="size-1.5 rounded-full bg-sky-400 animate-pulse" />
+          <div
+            className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider transition-colors duration-500"
+            style={{ color: accentColor }}
+          >
+            <span
+              className="size-1.5 rounded-full animate-pulse"
+              style={{ backgroundColor: accentColor }}
+            />
             <span className="font-bold">Now Hearing:</span>
           </div>
           <p

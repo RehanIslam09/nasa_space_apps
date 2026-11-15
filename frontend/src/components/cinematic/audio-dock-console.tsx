@@ -55,6 +55,13 @@ export const TUNING = {
       salt: 60,
       smoke: 20,
       sulfate: 30,
+      color: {
+        accent: '#10b981', // emerald-500
+        glow: 'rgba(16, 185, 129, 0.45)',
+        nebula: 'rgba(5, 150, 105, 0.2)',
+        bgTint: 'rgba(6, 78, 59, 0.25)',
+      },
+      effect: 'calm' as const,
     },
     {
       name: 'Deep Ocean',
@@ -66,6 +73,13 @@ export const TUNING = {
       salt: 90,
       smoke: 15,
       sulfate: 25,
+      color: {
+        accent: '#06b6d4', // cyan-500
+        glow: 'rgba(6, 182, 212, 0.45)',
+        nebula: 'rgba(14, 165, 233, 0.2)',
+        bgTint: 'rgba(8, 51, 68, 0.25)',
+      },
+      effect: 'ocean' as const,
     },
     {
       name: 'Storm Dynamics',
@@ -77,6 +91,13 @@ export const TUNING = {
       salt: 80,
       smoke: 60,
       sulfate: 50,
+      color: {
+        accent: '#8b5cf6', // violet-500
+        glow: 'rgba(139, 92, 246, 0.5)',
+        nebula: 'rgba(124, 58, 237, 0.2)',
+        bgTint: 'rgba(46, 16, 101, 0.25)',
+      },
+      effect: 'storm' as const,
     },
     {
       name: 'Planetary Fever',
@@ -88,6 +109,13 @@ export const TUNING = {
       salt: 40,
       smoke: 90,
       sulfate: 70,
+      color: {
+        accent: '#f97316', // orange-500
+        glow: 'rgba(249, 115, 22, 0.55)',
+        nebula: 'rgba(234, 88, 12, 0.25)',
+        bgTint: 'rgba(67, 20, 7, 0.25)',
+      },
+      effect: 'fever' as const,
     },
   ],
 };
@@ -176,6 +204,18 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
     setCurrentTime(0);
     announce(`Now exploring ${activeTrack.title}, ${activeTrack.category} sonification.`);
   }, [activeTrack.id, activeTrack.audioSrc, activeTrack.title, activeTrack.category, announce]);
+
+  // Dynamic active mood theme and canvas visual effect
+  const selectedPreset = TUNING.presets.find((p) => p.name === activePreset);
+  const themeColor = selectedPreset
+    ? selectedPreset.color
+    : {
+        accent: activeTrack.color.accent || '#38bdf8',
+        glow: activeTrack.color.glow || 'rgba(56, 189, 248, 0.4)',
+        nebula: activeTrack.color.nebula || 'rgba(56, 189, 248, 0.1)',
+        bgTint: 'rgba(12, 74, 110, 0.2)',
+      };
+  const moodEffect = selectedPreset ? selectedPreset.effect : 'calm';
 
   // Sync Equalizer with AudioGraph
   useEffect(() => {
@@ -552,7 +592,12 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
           Zero layout shift across all tabs on desktop.
           ───────────────────────────────────────────────────────────── */}
       <div
-        className="apple-glass relative overflow-hidden rounded-3xl border border-white/10 p-5 shadow-2xl backdrop-blur-2xl sm:p-7 md:p-8 h-auto lg:h-[78vh] lg:min-h-[560px] lg:max-h-[720px]"
+        className="apple-glass relative overflow-hidden rounded-3xl border p-5 shadow-2xl backdrop-blur-2xl transition-all duration-700 sm:p-7 md:p-8 h-auto lg:h-[78vh] lg:min-h-[560px] lg:max-h-[720px]"
+        style={{
+          borderColor: `${themeColor.accent}33`,
+          background: `linear-gradient(135deg, ${themeColor.bgTint || 'rgba(12, 74, 110, 0.2)'} 0%, rgba(5, 10, 20, 0.85) 45%, rgba(2, 4, 10, 0.95) 100%)`,
+          boxShadow: `0 30px 80px rgba(0, 0, 0, 0.8), 0 0 50px ${themeColor.glow}14, inset 0 1px 0 rgba(255, 255, 255, 0.1)`,
+        }}
       >
         <div className="grid h-full grid-cols-1 items-stretch gap-6 lg:grid-cols-12 overflow-hidden">
           {/* ─────────────────────────────────────────────────────────────
@@ -573,6 +618,8 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
               onScrub={handleScrub}
               formatTime={formatTime}
               onDetentTick={triggerDetent}
+              themeColor={themeColor}
+              moodEffect={moodEffect}
             />
           </div>
 
@@ -604,14 +651,23 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
                       onClick={() => handleApplyPreset(preset)}
                       className={`group flex items-center justify-center gap-1.5 rounded-2xl border px-3 py-2 text-xs font-semibold tracking-wide transition-all active:scale-95 ${
                         isActive
-                          ? 'border-sky-400 bg-sky-500/25 text-white shadow-[0_0_15px_rgba(56,189,248,0.3)]'
+                          ? 'text-white'
                           : 'border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10 hover:text-white'
                       }`}
+                      style={
+                        isActive
+                          ? {
+                              borderColor: preset.color.accent,
+                              backgroundColor: `${preset.color.accent}26`,
+                              color: '#ffffff',
+                              boxShadow: `0 0 16px ${preset.color.glow}`,
+                            }
+                          : undefined
+                      }
                     >
                       <Icon
-                        className={`size-3.5 transition-transform group-hover:scale-110 ${
-                          isActive ? 'text-sky-300' : 'text-slate-400 group-hover:text-white'
-                        }`}
+                        className="size-3.5 transition-transform group-hover:scale-110"
+                        style={isActive ? { color: preset.color.accent } : undefined}
                       />
                       <span className="truncate">{preset.name}</span>
                     </button>
@@ -648,7 +704,10 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <SlidersHorizontal className="size-3.5 text-sky-400" />
+                <SlidersHorizontal
+                  className="size-3.5"
+                  style={{ color: activeTab === 'mix' ? themeColor.accent : '#38bdf8' }}
+                />
                 <span>Mix</span>
               </button>
 
@@ -671,7 +730,10 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <Compass className="size-3.5 text-sky-400" />
+                <Compass
+                  className="size-3.5"
+                  style={{ color: activeTab === 'move' ? themeColor.accent : '#38bdf8' }}
+                />
                 <span>Move</span>
               </button>
 
@@ -751,6 +813,7 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
                   isSynthesizing={isSynthesizing}
                   customMixActive={customMixActive}
                   onDetentTick={triggerDetent}
+                  accentColor={themeColor.accent}
                 />
               )}
 
@@ -765,6 +828,7 @@ export function AudioDockConsole({ activeTrack, isPlaying, onTogglePlay }: Audio
                   setAtmosphereReverb={setAtmosphereReverb}
                   onDetentTick={triggerDetent}
                   onAnnounce={announce}
+                  accentColor={themeColor.accent}
                 />
               )}
 
