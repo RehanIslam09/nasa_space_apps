@@ -1,0 +1,9 @@
+# Ignore large runtime generated audio and local virtual environments
+storage/generated_audio/
+storage/*.db
+storage/extracted_frames/
+storage/processed_features/
+.venv/
+__pycache__/
+.pytest_cache/
+tests/

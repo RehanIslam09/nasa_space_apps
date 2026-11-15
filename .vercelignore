@@ -1,0 +1,21 @@
+# Vercel Deployment Ignore Configuration
+# Prevents bundling oversized temporary media, local virtual environments, and caches into serverless functions
+
+# Python runtime artifacts & caches
+backend/.venv/
+backend/__pycache__/
+backend/.pytest_cache/
+**/.venv/
+**/__pycache__/
+**/*.pyc
+
+# Local audio generation caches & SQLite DB (900MB+ of .wav files)
+backend/storage/generated_audio/
+backend/storage/*.db
+backend/storage/extracted_frames/
+backend/storage/processed_features/
+
+# Node & package artifacts
+**/node_modules/
+**/.next/
+**/.turbo/
