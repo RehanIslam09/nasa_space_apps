@@ -129,5 +129,6 @@ export function getServerEnv(): ServerEnv {
  * Defaults to local development port 8000.
  */
 export function getFastApiBackendUrl(): string {
-  return process.env.FASTAPI_BACKEND_URL || 'http://127.0.0.1:8000';
+  const url = process.env.FASTAPI_BACKEND_URL || 'http://127.0.0.1:8000';
+  return url.replace(/\/+$/, '');
 }

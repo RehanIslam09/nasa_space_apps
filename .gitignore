@@ -99,3 +99,8 @@ __pycache__/
 **/__pycache__/
 *.py[cod]
 *$py.class
+
+# Local Runtime Storage & Generated Audio
+backend/storage/generated_audio/
+backend/storage/*.db
+
