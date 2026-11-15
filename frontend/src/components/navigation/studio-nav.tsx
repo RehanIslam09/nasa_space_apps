@@ -65,7 +65,7 @@ export function StudioNav({
 
       if (e.key === 'Escape') {
         e.preventDefault();
-        window.location.href = '/#jukebox';
+        router.push('/#jukebox');
       } else if (e.key === '[' && prevTrack) {
         e.preventDefault();
         router.push(`/dataset/${prevTrack.id}`);
@@ -81,9 +81,8 @@ export function StudioNav({
 
   return (
     <header
-      className={`pointer-events-auto fixed inset-x-0 top-5 z-[60] mx-auto max-w-4xl px-4 transition-all duration-500 sm:px-6 ${
-        isScrolledDown ? 'opacity-30 hover:opacity-100' : 'opacity-100'
-      }`}
+      className={`pointer-events-auto fixed inset-x-0 top-5 z-[60] mx-auto max-w-4xl px-4 transition-all duration-500 sm:px-6 ${isScrolledDown ? 'opacity-30 hover:opacity-100' : 'opacity-100'
+        }`}
     >
       {/* Screen reader live region for dataset changes */}
       <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">

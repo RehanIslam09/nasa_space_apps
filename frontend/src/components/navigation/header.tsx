@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAppStore } from '@/stores/app-store';
 
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolledDown, setIsScrolledDown] = useState(false);
+  const { isMuted, toggleMute } = useAppStore();
 
   useEffect(() => {
     let lastScrollY = window.scrollY;
@@ -28,9 +30,8 @@ export function Header() {
 
   return (
     <header
-      className={`pointer-events-auto fixed inset-x-0 top-5 z-[60] mx-auto max-w-4xl px-4 transition-all duration-500 sm:px-6 ${
-        isScrolledDown ? 'opacity-30 hover:opacity-100' : 'opacity-100'
-      }`}
+      className={`pointer-events-auto fixed inset-x-0 top-5 z-[60] mx-auto max-w-4xl px-4 transition-all duration-500 sm:px-6 ${isScrolledDown ? 'opacity-30 hover:opacity-100' : 'opacity-100'
+        }`}
     >
       <div className="apple-glass sm:h-13 flex h-12 items-center justify-between rounded-full px-5 sm:px-7">
         {/* Brand - Clean Typography without icon */}
@@ -65,8 +66,56 @@ export function Header() {
           </a>
         </nav>
 
-        {/* Mobile Navigation Trigger */}
-        <div className="flex md:hidden">
+        {/* Right: Master Audio Controller (Desktop) */}
+        <div className="hidden md:flex md:items-center">
+          <button
+            type="button"
+            onClick={toggleMute}
+            aria-label={isMuted ? 'Unmute experience sound' : 'Mute experience sound'}
+            aria-pressed={!isMuted}
+            className="group flex min-h-[36px] items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-xs text-white/80 backdrop-blur-md transition-all hover:border-sky-400/50 hover:bg-black/60 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 cursor-pointer"
+          >
+            {isMuted ? (
+              <>
+                <VolumeX className="size-3.5 text-slate-400 transition-transform group-hover:scale-110" />
+                <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  Audio Muted
+                </span>
+              </>
+            ) : (
+              <>
+                <Volume2 className="size-3.5 text-sky-400 transition-transform group-hover:scale-110" />
+                <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-sky-300">
+                  Audio Live
+                </span>
+                <div className="ml-0.5 flex items-center gap-0.5">
+                  {[1, 2, 3, 4].map((bar) => (
+                    <div
+                      key={bar}
+                      className="indicator-line active"
+                      style={{ animationDelay: `${bar * 0.12}s` }}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Mobile Navigation Trigger & Audio Toggle */}
+        <div className="flex items-center gap-2 md:hidden">
+          <button
+            type="button"
+            onClick={toggleMute}
+            aria-label={isMuted ? 'Unmute sound' : 'Mute sound'}
+            className="flex size-8 items-center justify-center rounded-full text-white/80 hover:bg-white/10 hover:text-white"
+          >
+            {isMuted ? (
+              <VolumeX className="size-4 text-slate-400" />
+            ) : (
+              <Volume2 className="size-4 text-sky-400" />
+            )}
+          </button>
           <Button
             variant="ghost"
             size="sm"
@@ -106,6 +155,22 @@ export function Header() {
             >
               Sonic Console
             </a>
+            <div className="border-t border-white/10 pt-3">
+              <button
+                type="button"
+                onClick={toggleMute}
+                className="flex w-full items-center justify-between rounded-xl bg-white/[0.04] px-4 py-2.5 text-xs text-white"
+              >
+                <span className="font-mono uppercase tracking-wider text-slate-300">
+                  {isMuted ? 'Sound System: Muted' : 'Sound System: Live'}
+                </span>
+                {isMuted ? (
+                  <VolumeX className="size-4 text-slate-400" />
+                ) : (
+                  <Volume2 className="size-4 text-sky-400" />
+                )}
+              </button>
+            </div>
           </nav>
         </div>
       )}

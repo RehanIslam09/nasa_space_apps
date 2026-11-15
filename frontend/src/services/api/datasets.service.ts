@@ -51,11 +51,15 @@ export class DatasetsService {
     if (options.forceMock || isMockMode()) {
       return createMockResponse<DatasetMetadata[]>(mockDatasets);
     }
-    const res = await apiClient.get<DatasetMetadata[]>('/api/datasets');
-    if (!res.success) {
+    try {
+      const res = await apiClient.get<DatasetMetadata[]>('/api/datasets', { timeoutMs: 1500 });
+      if (!res.success) {
+        return createMockResponse<DatasetMetadata[]>(mockDatasets);
+      }
+      return res;
+    } catch {
       return createMockResponse<DatasetMetadata[]>(mockDatasets);
     }
-    return res;
   }
 
   /**
@@ -74,12 +78,22 @@ export class DatasetsService {
         meta: { timestamp: new Date().toISOString() },
       };
     }
-    const res = await apiClient.get<DatasetMetadata>(`/api/datasets/${encodeURIComponent(id)}`);
-    if (!res.success) {
+    try {
+      const res = await apiClient.get<DatasetMetadata>(`/api/datasets/${encodeURIComponent(id)}`, { timeoutMs: 1500 });
+      if (!res.success) {
+        const match = mockDatasets.find((d) => d.id === id);
+        if (match) return createMockResponse<DatasetMetadata>(match);
+      }
+      return res;
+    } catch {
       const match = mockDatasets.find((d) => d.id === id);
       if (match) return createMockResponse<DatasetMetadata>(match);
+      return {
+        success: false,
+        error: { code: 'NOT_FOUND', message: `Dataset '${id}' not found.` },
+        meta: { timestamp: new Date().toISOString() },
+      };
     }
-    return res;
   }
 
   /**

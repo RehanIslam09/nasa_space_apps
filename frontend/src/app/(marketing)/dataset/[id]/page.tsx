@@ -5,17 +5,21 @@ import { mockDatasets } from '@/services/api/mocks/fixtures/datasets.mock';
 import { DatasetSonificationView } from '@/components/cinematic/dataset-sonification-view';
 import type { Metadata } from 'next';
 
-export const dynamic = 'force-dynamic';
-
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+export async function generateStaticParams() {
+  return mockDatasets.map((d) => ({
+    id: d.id,
+  }));
+}
+
 export async function generateMetadata(props: PageProps): Promise<Metadata> {
   const { id } = await props.params;
-  const res = await datasetsService.getDataset(id);
-  const title = res.success && res.data?.title ? res.data.title : id.replace(/-/g, ' ').toUpperCase();
-  const description = res.success && res.data?.description ? res.data.description : `NASA Earth science sonification experience for ${title}.`;
+  const match = mockDatasets.find((d) => d.id === id);
+  const title = match?.title || id.replace(/-/g, ' ').toUpperCase();
+  const description = match?.description || `NASA Earth science sonification experience for ${title}.`;
   return {
     title: `${title} — NASA Data Sonification | PRANA`,
     description,
@@ -25,7 +29,7 @@ export async function generateMetadata(props: PageProps): Promise<Metadata> {
 export default async function DatasetPage(props: PageProps) {
   const { id } = await props.params;
 
-  // 1. Fetch live or fallback catalog
+  // 1. Fetch live or fallback catalog with instant mock resilience
   const catalogRes = await datasetsService.getDatasets();
   const allDatasets = catalogRes.success && catalogRes.data && catalogRes.data.length > 0 ? catalogRes.data : mockDatasets;
 

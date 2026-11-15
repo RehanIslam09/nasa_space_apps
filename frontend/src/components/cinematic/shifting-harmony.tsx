@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
@@ -10,54 +10,97 @@ import {
   type TelemetryPanelConfig,
 } from '@/config/earth-song.config';
 import { insightsService } from '@/services/api';
-import { Radio } from 'lucide-react';
+import { Radio, Volume2 } from 'lucide-react';
+import { shiftingHarmonyAudio } from './shifting-harmony-audio';
 
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
   (window as unknown as { ScrollTrigger: typeof ScrollTrigger }).ScrollTrigger = ScrollTrigger;
 }
 
-// Tunable animation and layout constants
-const TUNING = {
-  // Pinning & scroll distance
-  pinDuration: '+=220%',
-  pinTop: 'clamp(6rem, 9vh, 11rem)',              // Pinned card top offset from viewport ceiling
+// ============================================================================
+// TUNABLE CONSTANTS (Exposed for rapid creative direction & pacing adjustment)
+// ============================================================================
+export const TUNING = {
+  // Pinned Stage & Timeline Pacing (expressed as fractions of 1.0)
+  pinDuration: '+=260%',
+  scrub: 1,
 
-  // Spacing & Layout
-  gapSubtitleToCard: 'clamp(1.5rem, 6vh, 2.5rem)', // Scaled gap to ensure <= 18vh space across all viewports
-  cardEnterY: 48,                                  // px initial translateY for handoff
-  headingExitY: -40,                               // px drift upwards on exit
-  scaleFactor: 0.96,                               // scale transition factor
-  headingExitOpacity: 0.3,                         // target opacity for scrolled-out heading
+  // Scene choreography milestones along scrub (0.0 to 1.0)
+  headingEntranceStart: 0.0,
+  headingEntranceEnd: 0.12,
+  subtitleRevealStart: 0.10,
+  subtitleRevealEnd: 0.20,
+  handoffStart: 0.20,
+  handoffEnd: 0.32,
+  panelsStart: 0.32,
+  panelsEnd: 0.94,
+  exitStart: 0.94,
+  exitEnd: 1.0,
 
-  // Sound ripple depth rings
-  rippleMinOpacity: 0.06,
+  // Layout & Transform Anchors
+  headingAnchorScale: 0.36,
+  headingAnchorY: -24,
+  cardEnterY: 48,
+  cardExitY: -30,
+  cardExitScale: 0.985,
+
+  // Numeric Counter Transitions
+  counterTweenDuration: 0.5,
+  counterTweenEase: 'power3.out',
+
+  // Audio Audition Parameters
+  auditionDuration: 1.8,
+  auditionGain: 0.18,
+  auditionAttack: 0.15,
+  auditionRelease: 0.20,
+
+  // Ripple Background Effects
+  rippleMinOpacity: 0.05,
   rippleMaxOpacity: 0.12,
-
-  ease: 'expo.out',
 } as const;
 
 export function ShiftingHarmony() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const headingSectionRef = useRef<HTMLDivElement>(null);
-  const pinWrapperRef = useRef<HTMLDivElement>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
+  const pinStageRef = useRef<HTMLDivElement>(null);
+  const headingWrapperRef = useRef<HTMLDivElement>(null);
+  const subtitleRef = useRef<HTMLParagraphElement>(null);
+  const cardWrapperRef = useRef<HTMLDivElement>(null);
   const nebulaRef = useRef<HTMLDivElement>(null);
   const ripplesRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const [activePanelIndex, setActivePanelIndex] = useState(0);
-  const [displayValue, setDisplayValue] = useState(0);
-  const [hoveredPoint, setHoveredPoint] = useState<TelemetryPoint | null>(null);
-  const [hoverX, setHoverX] = useState<number | null>(null);
-  const [isSectionVisible, setIsSectionVisible] = useState(true);
-
+  // Active stage & telemetry
   const prefersReducedMotion = useReducedMotion();
   const [panels, setPanels] = useState<TelemetryPanelConfig[]>(earthSongConfig.telemetryPanels);
   const [telemetrySynced, setTelemetrySynced] = useState(false);
+  const [activePanelIndex, setActivePanelIndex] = useState(0);
+
+  // Counter & Display state (initialized to first panel's target so it NEVER starts at 0.0%)
+  const [displayValue, setDisplayValue] = useState<number>(() => {
+    return earthSongConfig.telemetryPanels[0]?.numericTarget ?? -12.6;
+  });
+  const prevTargetRef = useRef<number>(earthSongConfig.telemetryPanels[0]?.numericTarget ?? -12.6);
+  const counterTweenRef = useRef<gsap.core.Tween | null>(null);
+
+  // Interactive Time Scrubbing state
+  const [hoveredPoint, setHoveredPoint] = useState<TelemetryPoint | null>(null);
+  const [hoverX, setHoverX] = useState<number | null>(null);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [scrubIndex, setScrubIndex] = useState<number | null>(null);
+
+  // Audio Audition state
+  const [isAuditioning, setIsAuditioning] = useState(false);
+  const [isSectionVisible, setIsSectionVisible] = useState(true);
+
+  // Accessibility screen reader announcement
+  const [announcement, setAnnouncement] = useState('');
+
   const activePanel = panels[activePanelIndex] ?? panels[0]!;
 
-  // Asynchronously enrich telemetry panels with real NASA scientific insights
+  // ──────────────────────────────────────────────────────────────────────────
+  // 1. Asynchronously enrich panels with real NASA scientific insights
+  // ──────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     let isMounted = true;
     async function loadTelemetry() {
@@ -92,7 +135,7 @@ export function ShiftingHarmony() {
         );
         setTelemetrySynced(true);
       } catch {
-        // Fallback maintained smoothly
+        // Fallback gracefully maintained
       }
     }
 
@@ -102,9 +145,68 @@ export function ShiftingHarmony() {
     };
   }, []);
 
-  const { titleWord1, titleWord2, titleWord3, subtitle } = earthSongConfig.copy.shiftingHarmony;
+  // ──────────────────────────────────────────────────────────────────────────
+  // 2. Announce stage change to screen readers (debounced)
+  // ──────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const dec = activePanel.decimals ?? 0;
+      const valStr = `${activePanel.prefix || ''}${activePanel.numericTarget.toFixed(dec)} ${activePanel.suffix}`;
+      setAnnouncement(
+        `Stage ${activePanelIndex + 1} of ${panels.length}: ${activePanel.topic}. ${activePanel.label}, ${valStr} ${activePanel.unitDecade}.`
+      );
+    }, 200);
 
-  // Split subtitle into words for word-by-word reveal
+    return () => clearTimeout(timer);
+  }, [activePanelIndex, activePanel, panels.length]);
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 3. Counter State Math: Smooth Tween on Panel Change (No Zero Drops)
+  // ──────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    // If user is scrubbing the chart, the scrubbed year takes priority
+    if (isScrubbing && hoveredPoint) return;
+
+    const targetVal = activePanel.numericTarget;
+    const startVal = prevTargetRef.current;
+
+    // If starting on exact same value, set directly
+    if (startVal === targetVal) {
+      setDisplayValue(targetVal);
+      return;
+    }
+
+    if (prefersReducedMotion) {
+      prevTargetRef.current = targetVal;
+      setDisplayValue(targetVal);
+      return;
+    }
+
+    // Smoothly tween from previous value to new target over 500ms
+    const state = { value: startVal };
+    counterTweenRef.current?.kill();
+    counterTweenRef.current = gsap.to(state, {
+      value: targetVal,
+      duration: TUNING.counterTweenDuration,
+      ease: TUNING.counterTweenEase,
+      onUpdate: () => {
+        setDisplayValue(state.value);
+      },
+      onComplete: () => {
+        prevTargetRef.current = targetVal;
+        setDisplayValue(targetVal);
+      },
+    });
+
+    return () => {
+      counterTweenRef.current?.kill();
+    };
+  }, [activePanelIndex, activePanel.numericTarget, isScrubbing, hoveredPoint, prefersReducedMotion]);
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 4. Subtitle Split into Words
+  // ──────────────────────────────────────────────────────────────────────────
+  const { titleWord1, titleWord2, titleWord3, subtitle } = earthSongConfig.copy.shiftingHarmony;
   const subtitleWords = useMemo(
     () =>
       subtitle.split(' ').map((word, i) => (
@@ -115,9 +217,11 @@ export function ShiftingHarmony() {
     [subtitle]
   );
 
-  // Pause GPU animations when offscreen
+  // ──────────────────────────────────────────────────────────────────────────
+  // 5. Section Visibility Observer (Pauses background loops when offscreen)
+  // ──────────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    const el = ripplesRef.current;
+    const el = containerRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -129,148 +233,180 @@ export function ShiftingHarmony() {
     return () => observer.disconnect();
   }, []);
 
-  // Coordinated GSAP ScrollTriggers in strict document order:
-  // 1. Heading slide-in -> 2. Handoff scrub (Heading out / Card in) -> 3. Pinned Data Stage
+  // ──────────────────────────────────────────────────────────────────────────
+  // 6. Cleanup Audio Audition on Unmount
+  // ──────────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!containerRef.current || prefersReducedMotion) return;
+    return () => {
+      shiftingHarmonyAudio.dispose();
+    };
+  }, []);
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 7. Unified Keynote Scene Timeline (Single Pinned Container + Single Scrub)
+  // ──────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!containerRef.current || !pinStageRef.current) return;
 
     const ctx = gsap.context(() => {
-      const headingSection = headingSectionRef.current;
-      const pinWrapper = pinWrapperRef.current;
-      const card = cardRef.current;
-      if (!headingSection || !pinWrapper || !card) return;
+      const container = containerRef.current!;
+      const pinStage = pinStageRef.current!;
+      const headingWrapper = headingWrapperRef.current;
+      const subtitleEl = subtitleRef.current;
+      const cardWrapper = cardWrapperRef.current;
 
-      // 1. Heading masked word-slide-in and subtitle reveal
-      const headingTl = gsap.timeline({
+      if (!headingWrapper || !subtitleEl || !cardWrapper) return;
+
+      // When reduced motion is preferred, simplify to clean resting layout
+      if (prefersReducedMotion) {
+        gsap.set('.harmony-word-the', { y: 0, opacity: 1 });
+        gsap.set('.harmony-word-shifting', { x: 0, opacity: 1 });
+        gsap.set('.harmony-word-harmony', { x: 0, opacity: 1 });
+        gsap.set('.harmony-subtitle-word', { opacity: 1 });
+        gsap.set(headingWrapper, { scale: TUNING.headingAnchorScale, y: TUNING.headingAnchorY });
+        gsap.set(subtitleEl, { opacity: 0, display: 'none' });
+        gsap.set(cardWrapper, { y: 0, scale: 1, opacity: 1 });
+        return;
+      }
+
+      // Initial visual setup before scroll triggers
+      gsap.set('.harmony-word-the', { y: 60, opacity: 0 });
+      gsap.set('.harmony-word-shifting', { x: -80, opacity: 0 });
+      gsap.set('.harmony-word-harmony', { x: 80, opacity: 0 });
+      gsap.set(cardWrapper, { y: TUNING.cardEnterY, scale: 0.96, opacity: 0 });
+
+      // ONE UNIFIED MASTER TIMELINE DRIVEN BY SCROLLTRIGGER
+      const masterTl = gsap.timeline({
         scrollTrigger: {
-          trigger: headingSection,
-          start: 'top 85%',
-          end: 'bottom 45%',
-          scrub: 0.6,
-          refreshPriority: 2,
+          trigger: container,
+          start: 'top top',
+          end: TUNING.pinDuration,
+          pin: pinStage,
+          pinSpacing: true,
+          scrub: TUNING.scrub,
+          onUpdate: (self) => {
+            const p = self.progress;
+
+            // Map progress across active panel stages [panelsStart, panelsEnd]
+            if (p < TUNING.panelsStart) {
+              setActivePanelIndex(0);
+            } else if (p >= TUNING.panelsEnd) {
+              setActivePanelIndex(panels.length - 1);
+            } else {
+              const panelProgress = (p - TUNING.panelsStart) / (TUNING.panelsEnd - TUNING.panelsStart);
+              const idx = Math.min(
+                Math.floor(panelProgress * panels.length),
+                panels.length - 1
+              );
+              setActivePanelIndex(idx);
+            }
+          },
         },
       });
 
-      headingTl
-        .fromTo(
+      // ----------------------------------------------------------------------
+      // PHASE 1: Heading Entrance (0.00 -> 0.12)
+      // "THE SHIFTING HARMONY" words slide in masked
+      // ----------------------------------------------------------------------
+      masterTl
+        .to(
           '.harmony-word-the',
-          { y: '100%', opacity: 0 },
-          { y: '0%', opacity: 1, duration: 0.6, ease: 'power3.out' }
-        )
-        .fromTo(
-          '.harmony-word-shifting',
-          { x: -110, opacity: 0 },
-          { x: 0, opacity: 1, duration: 0.8, ease: 'power3.out' },
-          0.1
-        )
-        .fromTo(
-          '.harmony-word-harmony',
-          { x: 110, opacity: 0 },
-          { x: 0, opacity: 1, duration: 0.8, ease: 'power3.out' },
-          0.1
+          { y: 0, opacity: 1, duration: 0.08, ease: 'power3.out' },
+          0.0
         )
         .to(
-          '.harmony-subtitle-word',
-          {
-            opacity: 1,
-            stagger: 0.02,
-            duration: 0.5,
-            ease: 'power2.out',
-          },
-          0.3
+          '.harmony-word-shifting',
+          { x: 0, opacity: 1, duration: 0.10, ease: 'power3.out' },
+          0.02
+        )
+        .to(
+          '.harmony-word-harmony',
+          { x: 0, opacity: 1, duration: 0.10, ease: 'power3.out' },
+          0.02
         );
 
-      // 2. Coordinated Handoff: Heading drifts out & fades while Card rises in smoothly
-      const handoffTl = gsap.timeline({
-        scrollTrigger: {
-          trigger: headingSection,
-          start: 'bottom 85%',
-          end: 'bottom 25%',
-          scrub: 1,
-          refreshPriority: 1,
+      // ----------------------------------------------------------------------
+      // PHASE 2: Subtitle Reveal (0.10 -> 0.20)
+      // Word-by-word staggered reveal
+      // ----------------------------------------------------------------------
+      masterTl.to(
+        '.harmony-subtitle-word',
+        {
+          opacity: 1,
+          stagger: 0.004,
+          duration: 0.08,
+          ease: 'power2.out',
         },
-      });
+        0.10
+      );
 
-      handoffTl
+      // ----------------------------------------------------------------------
+      // PHASE 3: Coordinated Handoff (0.20 -> 0.32)
+      // Heading rises & condenses into top anchor, Subtitle fades, Card rises in
+      // ----------------------------------------------------------------------
+      masterTl
         .to(
-          headingSection,
+          headingWrapper,
           {
-            y: TUNING.headingExitY,
-            scale: TUNING.scaleFactor,
-            opacity: TUNING.headingExitOpacity,
+            scale: TUNING.headingAnchorScale,
+            y: TUNING.headingAnchorY,
+            duration: 0.12,
+            ease: 'power2.inOut',
+          },
+          0.20
+        )
+        .to(
+          subtitleEl,
+          {
+            opacity: 0,
+            y: -12,
+            duration: 0.08,
             ease: 'power2.out',
           },
-          0
+          0.20
         )
-        .fromTo(
-          card,
-          {
-            y: TUNING.cardEnterY,
-            scale: TUNING.scaleFactor,
-            opacity: 0,
-          },
+        .to(
+          cardWrapper,
           {
             y: 0,
             scale: 1,
             opacity: 1,
-            ease: TUNING.ease,
+            duration: 0.12,
+            ease: 'expo.out',
           },
-          0
+          0.20
         );
 
-      // 3. Sequential Pinned Stage: pins pinWrapper at top: 0
-      ScrollTrigger.create({
-        trigger: pinWrapper,
-        start: 'top top',
-        end: TUNING.pinDuration,
-        pin: true,
-        pinSpacing: true,
-        scrub: 0.4,
-        refreshPriority: 0,
-        onUpdate: (self) => {
-          const progress = self.progress;
-
-          // Apple-style handoff at final 16%: card, nebula, and ripples dissolve into pure cosmic starfield
-          if (progress > 0.84) {
-            const fadeRatio = Math.min(1, (progress - 0.84) / 0.14); // 0 to 1
-            const remainingOpacity = Math.max(0, 1 - fadeRatio);
-            gsap.set(card, {
-              scale: 1 - fadeRatio * 0.1,
-              opacity: remainingOpacity,
-            });
-            if (nebulaRef.current) {
-              gsap.set(nebulaRef.current, { opacity: remainingOpacity });
-            }
-            if (ripplesRef.current) {
-              gsap.set(ripplesRef.current, { opacity: remainingOpacity });
-            }
-          } else {
-            gsap.set(card, {
-              scale: 1,
-              opacity: 1,
-            });
-            if (nebulaRef.current) {
-              gsap.set(nebulaRef.current, { opacity: 1 });
-            }
-            if (ripplesRef.current) {
-              gsap.set(ripplesRef.current, { opacity: 1 });
-            }
-          }
-
-          // Active panel indexing across progress (scaled over first 84% so panel 4 settles nicely)
-          const panelProgress = Math.min((progress / 0.84) * panels.length, panels.length - 0.001);
-          const index = Math.floor(panelProgress);
-          setActivePanelIndex(index);
-
-          // Animate numeric counter proportionally within the active panel slice
-          const targetConfig = panels[index]!;
-          const sliceFraction = panelProgress - index; // 0 to 1 inside current panel
-          const interpolated = targetConfig.numericTarget * Math.min(sliceFraction * 1.5, 1);
-          setDisplayValue(interpolated);
+      // ----------------------------------------------------------------------
+      // PHASE 4: Telemetry Stages Hold & Transition (0.32 -> 0.94)
+      // Dummy step keeping timeline pacing calibrated for smooth scrubbing
+      // ----------------------------------------------------------------------
+      masterTl.to(
+        cardWrapper,
+        {
+          y: 0,
+          duration: 0.62,
+          ease: 'none',
         },
-      });
+        0.32
+      );
 
-      // Refresh math after fonts and video metadata settle
+      // ----------------------------------------------------------------------
+      // PHASE 5: Exit Without Void (0.94 -> 1.00)
+      // Card stays fully visible, gently lifts (-30px, scale 0.985), bottom feathers
+      // ----------------------------------------------------------------------
+      masterTl.to(
+        cardWrapper,
+        {
+          y: TUNING.cardExitY,
+          scale: TUNING.cardExitScale,
+          duration: 0.06,
+          ease: 'power2.inOut',
+        },
+        0.94
+      );
+
+      // Refresh math after web fonts and assets settle
       if (typeof document !== 'undefined' && 'fonts' in document) {
         document.fonts.ready.then(() => {
           ScrollTrigger.refresh();
@@ -279,9 +415,11 @@ export function ShiftingHarmony() {
     }, containerRef);
 
     return () => ctx.revert();
-  }, [panels, prefersReducedMotion]);
+  }, [panels.length, prefersReducedMotion]);
 
-  // 3. Audio-Waveform Canvas tied to active panel frequency and telemetry
+  // ──────────────────────────────────────────────────────────────────────────
+  // 8. Live Waveform Canvas (Connected to Web Audio Analyser & Telemetry)
+  // ──────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (prefersReducedMotion) return;
 
@@ -292,7 +430,7 @@ export function ShiftingHarmony() {
 
     let animId: number;
     let time = 0;
-    let isVisible = true;
+    const freqData = new Uint8Array(128);
 
     const handleResize = () => {
       const rect = canvas.getBoundingClientRect();
@@ -305,16 +443,8 @@ export function ShiftingHarmony() {
     handleResize();
     window.addEventListener('resize', handleResize);
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        isVisible = entry?.isIntersecting ?? false;
-      },
-      { threshold: 0.05 }
-    );
-    observer.observe(canvas);
-
     const render = () => {
-      if (isVisible) {
+      if (isSectionVisible) {
         const rect = canvas.getBoundingClientRect();
         const width = rect.width;
         const height = rect.height;
@@ -324,39 +454,58 @@ export function ShiftingHarmony() {
         const midY = height / 2;
         const steps = Math.min(Math.floor(width / 2), 240);
 
-        ctx.beginPath();
-        for (let i = 0; i <= steps; i++) {
-          const x = (i / steps) * width;
-          const nx = i / steps;
+        // Check if an audition is actively playing through the Web Audio Analyser
+        const analyser = shiftingHarmonyAudio.getAnalyser();
 
-          // Panel specific frequency vibration
-          const wave1 =
-            Math.sin(nx * currentWf.frequency * 8 + time * 3.2) * currentWf.amplitude * 0.5;
-          const wave2 =
-            Math.sin(nx * currentWf.frequency * 16 - time * 4.5) * currentWf.amplitude * 0.3;
+        if (analyser && isAuditioning) {
+          // LIVE PHYSICAL WAVEFORM FROM WEB AUDIO
+          analyser.getByteTimeDomainData(freqData);
 
-          // Jaggedness noise injected based on telemetry severity
-          const jagged =
-            Math.sin(nx * 60 + time * 8) *
-            Math.cos(nx * 30) *
-            (currentWf.amplitude * currentWf.jaggedness * 0.7);
+          ctx.beginPath();
+          for (let i = 0; i < steps; i++) {
+            const x = (i / steps) * width;
+            const dataIndex = Math.floor((i / steps) * freqData.length);
+            const v = (freqData[dataIndex] ?? 128) / 128.0; // 0 to 2
+            const y = v * midY;
 
-          const y = midY + wave1 + wave2 + jagged;
-
-          if (i === 0) {
-            ctx.moveTo(x, y);
-          } else {
-            ctx.lineTo(x, y);
+            if (i === 0) {
+              ctx.moveTo(x, y);
+            } else {
+              ctx.lineTo(x, y);
+            }
           }
+        } else {
+          // IDLE TELEMETRY WAVEFORM FROM PANEL PARAMETERS
+          ctx.beginPath();
+          for (let i = 0; i <= steps; i++) {
+            const x = (i / steps) * width;
+            const nx = i / steps;
+
+            const wave1 =
+              Math.sin(nx * currentWf.frequency * 7 + time * 3.0) * (currentWf.amplitude * 0.45);
+            const wave2 =
+              Math.sin(nx * currentWf.frequency * 14 - time * 4.2) * (currentWf.amplitude * 0.25);
+            const jagged =
+              Math.sin(nx * 50 + time * 6) *
+              Math.cos(nx * 25) *
+              (currentWf.amplitude * currentWf.jaggedness * 0.6);
+
+            const y = midY + wave1 + wave2 + jagged;
+
+            if (i === 0) {
+              ctx.moveTo(x, y);
+            } else {
+              ctx.lineTo(x, y);
+            }
+          }
+          time += 0.03;
         }
 
         ctx.strokeStyle = activePanel.color.accent;
-        ctx.lineWidth = 1.75;
+        ctx.lineWidth = isAuditioning ? 2.5 : 1.75;
         ctx.shadowColor = activePanel.color.glow;
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = isAuditioning ? 14 : 8;
         ctx.stroke();
-
-        time += 0.03;
       }
 
       animId = requestAnimationFrame(render);
@@ -367,11 +516,12 @@ export function ShiftingHarmony() {
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
-      observer.disconnect();
     };
-  }, [activePanel, prefersReducedMotion]);
+  }, [activePanel, isSectionVisible, isAuditioning, prefersReducedMotion]);
 
-  // Compute SVG sparkline path for active panel's chart dataset
+  // ──────────────────────────────────────────────────────────────────────────
+  // 9. Interactive SVG Sparkline Calculation
+  // ──────────────────────────────────────────────────────────────────────────
   const chartSvgPath = useMemo(() => {
     const data = activePanel.chart;
     if (!data.length) return { path: '', area: '', points: [] };
@@ -388,10 +538,9 @@ export function ShiftingHarmony() {
     const coords = data.map((d, i) => {
       const x = padding + (i / (data.length - 1)) * (width - 2 * padding);
       const y = height - padding - ((d.value - minVal) / range) * (height - 2 * padding);
-      return { x, y, point: d };
+      return { x, y, point: d, index: i };
     });
 
-    // Smooth Bezier Curve
     let pathD = `M ${coords[0]!.x} ${coords[0]!.y}`;
     for (let i = 0; i < coords.length - 1; i++) {
       const p0 = coords[i]!;
@@ -406,32 +555,134 @@ export function ShiftingHarmony() {
     return { path: pathD, area: areaD, points: coords };
   }, [activePanel]);
 
-  // Handle interactive hover on chart
-  const handleChartMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const relativeX = (mouseX / rect.width) * 420;
-    setHoverX(relativeX);
+  // ──────────────────────────────────────────────────────────────────────────
+  // 10. Scrubbing Handlers (Mouse, Touch, Keyboard)
+  // ──────────────────────────────────────────────────────────────────────────
+  const handleScrubMove = useCallback(
+    (clientX: number, target: SVGSVGElement) => {
+      const rect = target.getBoundingClientRect();
+      const relativePixelX = clientX - rect.left;
+      const relativeX = Math.max(0, Math.min(420, (relativePixelX / rect.width) * 420));
+      setHoverX(relativeX);
+      setIsScrubbing(true);
 
-    // Find closest point
-    let closest = chartSvgPath.points[0]?.point ?? null;
-    let minDist = Infinity;
-    chartSvgPath.points.forEach((pt) => {
-      const dist = Math.abs(pt.x - relativeX);
-      if (dist < minDist) {
-        minDist = dist;
-        closest = pt.point;
+      let closest = chartSvgPath.points[0]?.point ?? null;
+      let closestIdx = 0;
+      let minDist = Infinity;
+
+      chartSvgPath.points.forEach((pt, i) => {
+        const dist = Math.abs(pt.x - relativeX);
+        if (dist < minDist) {
+          minDist = dist;
+          closest = pt.point;
+          closestIdx = i;
+        }
+      });
+
+      setHoveredPoint(closest);
+      setScrubIndex(closestIdx);
+
+      // Dynamically sync giant headline number with scrubbed year
+      if (closest) {
+        setDisplayValue(closest.value);
       }
-    });
-    setHoveredPoint(closest);
-  };
+    },
+    [chartSvgPath.points]
+  );
 
-  const handleChartMouseLeave = () => {
+  const handleScrubEnd = useCallback(() => {
     setHoverX(null);
     setHoveredPoint(null);
+    setIsScrubbing(false);
+    setScrubIndex(null);
+
+    // Smoothly ease back to the scroll-driven target
+    const targetVal = activePanel.numericTarget;
+    const state = { value: displayValue };
+    counterTweenRef.current?.kill();
+    counterTweenRef.current = gsap.to(state, {
+      value: targetVal,
+      duration: 0.4,
+      ease: 'power3.out',
+      onUpdate: () => setDisplayValue(state.value),
+      onComplete: () => {
+        prevTargetRef.current = targetVal;
+        setDisplayValue(targetVal);
+      },
+    });
+  }, [activePanel.numericTarget, displayValue]);
+
+  // Keyboard navigation on chart
+  const handleChartKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const points = chartSvgPath.points;
+    if (!points.length) return;
+
+    let nextIdx = scrubIndex ?? points.length - 1;
+
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      nextIdx = Math.max(0, nextIdx - 1);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      nextIdx = Math.min(points.length - 1, nextIdx + 1);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      nextIdx = 0;
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      nextIdx = points.length - 1;
+    } else {
+      return;
+    }
+
+    const selected = points[nextIdx]!;
+    setScrubIndex(nextIdx);
+    setHoveredPoint(selected.point);
+    setHoverX(selected.x);
+    setIsScrubbing(true);
+    setDisplayValue(selected.point.value);
   };
 
-  // Format tabular display number and sign without wrapping
+  // ──────────────────────────────────────────────────────────────────────────
+  // 11. Audio Audition Trigger
+  // ──────────────────────────────────────────────────────────────────────────
+  const handleAudition = () => {
+    if (isAuditioning) {
+      shiftingHarmonyAudio.stopAudition(setIsAuditioning);
+    } else {
+      const success = shiftingHarmonyAudio.playAudition(
+        activePanel.frequency,
+        TUNING.auditionDuration,
+        TUNING.auditionGain,
+        setIsAuditioning
+      );
+      if (!success) {
+        // If muted or blocked, provide tactile micro-feedback
+        setIsAuditioning(false);
+      }
+    }
+  };
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 12. Stepper Button Click: Smooth Scroll to Stage
+  // ──────────────────────────────────────────────────────────────────────────
+  const scrollToStage = (stageIdx: number) => {
+    if (!containerRef.current) return;
+    const containerTop = containerRef.current.offsetTop;
+    const pinDistancePx = window.innerHeight * 2.6; // Matches +=260%
+    const stageSlice = (TUNING.panelsEnd - TUNING.panelsStart) / panels.length;
+    const targetProgress = TUNING.panelsStart + stageIdx * stageSlice + stageSlice * 0.5;
+    const targetScrollY = containerTop + targetProgress * pinDistancePx;
+
+    window.scrollTo({
+      top: targetScrollY,
+      behavior: 'smooth',
+    });
+  };
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 13. Formatted Value & Unit strings
+  // ──────────────────────────────────────────────────────────────────────────
   const { displaySign, displayNumber } = useMemo(() => {
     const dec = activePanel.decimals ?? 0;
     const sign = displayValue > 0 && activePanel.prefix ? '+' : '';
@@ -445,43 +696,23 @@ export function ShiftingHarmony() {
       className="relative w-full bg-transparent text-white"
       aria-label="Section B: Planetary Telemetry — The Shifting Harmony"
     >
-      {/* ─────────────────────────────────────────────────────────────
-          1. HEADING SECTION: MASKED REVEAL WITH SLIDING WORDS
-      ───────────────────────────────────────────────────────────── */}
-      <div
-        ref={headingSectionRef}
-        className="relative z-10 px-6 pb-1 pt-16 text-center sm:pb-2 sm:pt-24 will-change-transform"
-      >
-        <div className="mx-auto max-w-5xl overflow-hidden">
-          {/* Masked Line: THE SHIFTING HARMONY */}
-          <div className="flex flex-wrap items-center justify-center gap-3 overflow-hidden sm:gap-6">
-            <span className="harmony-word-the special-font hero-heading text-4xl uppercase tracking-tight text-white/70 sm:text-7xl md:text-8xl lg:text-9xl">
-              {titleWord1}
-            </span>
-            <span className="harmony-word-shifting special-font hero-heading text-4xl uppercase tracking-tight text-white sm:text-7xl md:text-8xl lg:text-9xl">
-              {titleWord2}
-            </span>
-            <span className="harmony-word-harmony special-font hero-heading text-4xl uppercase tracking-tight text-sky-400 sm:text-7xl md:text-8xl lg:text-9xl">
-              {titleWord3}
-            </span>
-          </div>
-
-          {/* Subtitle Word-by-Word Scroll Reveal */}
-          <p className="font-circular mx-auto mt-4 max-w-2xl text-base font-light text-slate-300 sm:text-lg">
-            {subtitleWords}
-          </p>
-        </div>
+      {/* Screen Reader Live Region */}
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {announcement}
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
-          2. PINNED "DATA AS MUSIC" SEQUENTIAL STAGE (APPLE KEYNOTE PACING)
+          UNIFIED PINNED STAGE (Apple Keynote Pacing & Choreography)
       ───────────────────────────────────────────────────────────── */}
       <div
-        ref={pinWrapperRef}
-        style={{ ['--pin-top' as string]: TUNING.pinTop } as React.CSSProperties}
-        className="relative flex min-h-screen w-full flex-col items-center justify-start px-4 pt-[var(--pin-top)] -mt-[var(--pin-top)] pb-12 sm:px-6 overflow-hidden"
+        ref={pinStageRef}
+        className="relative flex h-[100dvh] min-h-[100dvh] w-full flex-col items-center justify-center px-4 sm:px-6 overflow-hidden select-none"
+        style={{
+          maskImage: 'linear-gradient(to bottom, black 88%, transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, black 88%, transparent 100%)',
+        }}
       >
-        {/* Dynamic Stacked Ambient Nebula Glow layers crossfading across panels */}
+        {/* Dynamic Stacked Ambient Nebula Glow layers */}
         <div ref={nebulaRef} className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
           {panels.map((p, idx) => (
             <div
@@ -495,7 +726,7 @@ export function ShiftingHarmony() {
           ))}
         </div>
 
-        {/* Faint Concentric Sound Ripple Rings Expanding Behind Card */}
+        {/* Faint Concentric Sound Ripple Rings Expanding Behind Stage */}
         <div
           ref={ripplesRef}
           className="pointer-events-none absolute inset-0 flex items-center justify-center -z-10 overflow-hidden"
@@ -540,12 +771,48 @@ export function ShiftingHarmony() {
           )}
         </div>
 
-        {/* Active Telemetry Panel Viewport (Properly centered, no void, no wrapping) */}
-        <div ref={cardRef} className="relative z-10 mx-auto w-full max-w-5xl will-change-transform max-sm:origin-top max-sm:scale-[0.92]">
-          <div className="apple-glass relative overflow-hidden rounded-3xl border border-white/10 p-6 shadow-2xl backdrop-blur-2xl transition-all duration-500 sm:p-10">
-            {/* Header: Category + Frequency Badge */}
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-4">
-              <div className="flex items-center gap-3">
+        {/* ─────────────────────────────────────────────────────────────
+            1. UNIFIED SCENE HEADING (Transforms smoothly into Top Anchor)
+        ───────────────────────────────────────────────────────────── */}
+        <div
+          ref={headingWrapperRef}
+          className="relative z-20 w-full max-w-5xl px-4 text-center will-change-transform origin-top"
+        >
+          <div className="mx-auto overflow-hidden">
+            {/* Masked Headline: THE SHIFTING HARMONY */}
+            <div className="flex flex-wrap items-center justify-center gap-2 overflow-hidden sm:gap-4 md:gap-6">
+              <span className="harmony-word-the special-font hero-heading text-3xl uppercase tracking-tight text-white/70 sm:text-6xl md:text-7xl lg:text-8xl">
+                {titleWord1}
+              </span>
+              <span className="harmony-word-shifting special-font hero-heading text-3xl uppercase tracking-tight text-white sm:text-6xl md:text-7xl lg:text-8xl">
+                {titleWord2}
+              </span>
+              <span className="harmony-word-harmony special-font hero-heading text-3xl uppercase tracking-tight text-sky-400 sm:text-6xl md:text-7xl lg:text-8xl">
+                {titleWord3}
+              </span>
+            </div>
+
+            {/* Subtitle Word-by-Word Scroll Reveal */}
+            <p
+              ref={subtitleRef}
+              className="font-circular mx-auto mt-2 max-w-2xl text-xs font-light text-slate-300 sm:mt-3 sm:text-sm md:text-base"
+            >
+              {subtitleWords}
+            </p>
+          </div>
+        </div>
+
+        {/* ─────────────────────────────────────────────────────────────
+            2. UNIFIED TELEMETRY CARD (Enters smoothly under Anchor)
+        ───────────────────────────────────────────────────────────── */}
+        <div
+          ref={cardWrapperRef}
+          className="relative z-10 mx-auto w-full max-w-5xl will-change-transform mt-2 sm:mt-4"
+        >
+          <div className="apple-glass relative overflow-hidden rounded-3xl border border-white/10 p-4 shadow-2xl backdrop-blur-2xl transition-colors duration-500 sm:p-7 lg:p-9">
+            {/* Header: Category + Interactive Frequency Audition Button */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] pb-3 sm:pb-4">
+              <div className="flex items-center gap-2.5">
                 <span
                   className="size-2 animate-ping rounded-full"
                   style={{ backgroundColor: activePanel.color.accent }}
@@ -555,56 +822,80 @@ export function ShiftingHarmony() {
                 </span>
               </div>
 
-              <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-xs">
-                <Radio
-                  className="size-3.5 animate-pulse"
-                  style={{ color: activePanel.color.accent }}
-                />
+              {/* Interactive Hz Audition Button */}
+              <button
+                type="button"
+                onClick={handleAudition}
+                aria-label={`Hear ${activePanel.frequency} planetary harmonic resonance: ${activePanel.sonicStatus}`}
+                className="group flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-xs transition-all hover:border-sky-400/50 hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 cursor-pointer"
+              >
+                {isAuditioning ? (
+                  <Volume2 className="size-3.5 animate-pulse text-sky-400" />
+                ) : (
+                  <Radio
+                    className="size-3.5 transition-transform group-hover:scale-110"
+                    style={{ color: activePanel.color.accent }}
+                  />
+                )}
                 <span className="font-mono text-[10px] text-slate-200 sm:text-[11px]">
                   {activePanel.frequency} • {activePanel.sonicStatus}
                 </span>
-                {telemetrySynced && (
-                  <span className="ml-1 inline-flex items-center gap-1 rounded bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-300">
+                <span
+                  className="ml-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold tracking-wider uppercase transition-colors"
+                  style={{
+                    backgroundColor: isAuditioning ? activePanel.color.accent : 'rgba(255,255,255,0.08)',
+                    color: isAuditioning ? '#000000' : '#94a3b8',
+                  }}
+                >
+                  {isAuditioning ? 'AUDITION LIVE' : 'HEAR TONE'}
+                </span>
+                {telemetrySynced && !isAuditioning && (
+                  <span className="hidden sm:inline-flex items-center gap-1 rounded bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-300">
                     <span className="size-1 rounded-full bg-emerald-400" />
                     LIVE
                   </span>
                 )}
-              </div>
+              </button>
             </div>
 
             {/* Main Stage Grid: Giant Number + Interactive Sparkline Chart */}
-            <div className="mt-6 grid grid-cols-1 items-center gap-6 lg:grid-cols-12 lg:gap-8">
-              {/* Left Column: Giant Number + One-Line Restrained Caption */}
+            <div className="mt-4 grid grid-cols-1 items-center gap-4 sm:mt-6 sm:gap-6 lg:grid-cols-12 lg:gap-8">
+              {/* Left Column: Giant Number + Description */}
               <div className="lg:col-span-6">
-                <div className="font-mono text-[11px] uppercase tracking-wider text-slate-400">
+                <div className="font-mono text-[10px] uppercase tracking-wider text-slate-400 sm:text-[11px]">
                   {activePanel.label}
                 </div>
 
-                {/* Giant Condensed Tabular Counter — STRICTLY ONE LINE, NO WRAPPING */}
+                {/* Giant Condensed Tabular Counter — Strictly No Wrapping */}
                 <div
                   className="mt-1 flex flex-nowrap items-baseline gap-2 whitespace-nowrap leading-none transition-all"
                   style={{ textShadow: `0 0 35px ${activePanel.color.glow}` }}
+                  aria-label={`${activePanel.label}, ${displaySign}${displayNumber} ${activePanel.suffix} ${activePanel.unitDecade}`}
                 >
-                  <span className="special-font font-zentry shrink-0 text-[clamp(2.75rem,7vw,6.5rem)] font-black tabular-nums tracking-tight text-white">
+                  <span className="special-font font-zentry shrink-0 text-[clamp(2.5rem,6.5vw,5.75rem)] font-black tabular-nums tracking-tight text-white">
                     {displaySign}
                     {displayNumber}
                   </span>
-                  <span className="font-zentry shrink-0 whitespace-nowrap text-[clamp(1.15rem,2.8vw,2.5rem)] font-bold uppercase text-slate-300">
+                  <span className="font-zentry shrink-0 whitespace-nowrap text-[clamp(1.1rem,2.5vw,2.25rem)] font-bold uppercase text-slate-300">
                     {activePanel.suffix}
                   </span>
                 </div>
 
-
-                <div className="mt-1 font-mono text-[11px] uppercase tracking-widest text-slate-500">
-                  {activePanel.unitDecade}
+                <div className="mt-1 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-slate-500 sm:text-[11px]">
+                  <span>{activePanel.unitDecade}</span>
+                  {hoveredPoint && (
+                    <span className="rounded bg-sky-500/20 px-1.5 py-0.5 text-[9px] font-bold text-sky-300 animate-pulse">
+                      OBSERVATION ({hoveredPoint.year})
+                    </span>
+                  )}
                 </div>
 
-                {/* One-line soft caption */}
-                <p className="font-circular mt-4 max-w-md text-xs font-light leading-relaxed text-slate-300/90 sm:text-sm">
+                {/* Scientifically interpreted caption */}
+                <p className="font-circular mt-3 max-w-md text-xs font-light leading-relaxed text-slate-300/90 sm:mt-4 sm:text-sm">
                   {activePanel.caption}
                 </p>
 
-                <div className="mt-4 flex items-center gap-2 text-xs text-slate-400">
+                <div className="mt-3 flex items-center gap-2 text-xs text-slate-400 sm:mt-4">
                   <span className="font-mono text-[10px] text-slate-500">Sensor:</span>
                   <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] text-white/90">
                     {activePanel.sensor}
@@ -612,13 +903,28 @@ export function ShiftingHarmony() {
                 </div>
               </div>
 
-              {/* Right Column: Minimal Self-Drawing Chart & Audio Waveform Visual */}
-              <div className="flex flex-col gap-4 lg:col-span-6">
-                {/* 1. Self-Drawing SVG Chart with Interactive Cursor Scrub */}
-                <div className="relative rounded-2xl border border-white/[0.08] bg-black/50 p-3.5 backdrop-blur-md">
-                  <div className="flex items-center justify-between pb-1.5 font-mono text-[10px] text-slate-400">
+              {/* Right Column: Interactive Chart & Waveform Visual */}
+              <div className="flex flex-col gap-3 sm:gap-4 lg:col-span-6">
+                {/* 1. Time-Series SVG Chart with Touch/Mouse/Keyboard Scrubbing */}
+                <div
+                  tabIndex={0}
+                  role="slider"
+                  aria-label="Observational time-series inspection"
+                  aria-valuemin={0}
+                  aria-valuemax={activePanel.chart.length - 1}
+                  aria-valuenow={scrubIndex ?? activePanel.chart.length - 1}
+                  aria-valuetext={
+                    hoveredPoint
+                      ? `${hoveredPoint.year}: ${hoveredPoint.value} ${activePanel.suffix}`
+                      : `${activePanel.chart[activePanel.chart.length - 1]?.year}: ${activePanel.chart[activePanel.chart.length - 1]?.value} ${activePanel.suffix}`
+                  }
+                  onKeyDown={handleChartKeyDown}
+                  onBlur={handleScrubEnd}
+                  className="relative rounded-2xl border border-white/[0.08] bg-black/50 p-3 backdrop-blur-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 sm:p-3.5"
+                >
+                  <div className="flex items-center justify-between pb-1 font-mono text-[10px] text-slate-400">
                     <span>OBSERVATIONAL TIME-SERIES</span>
-                    <span className="text-sky-300">
+                    <span className="text-sky-300 font-bold">
                       {hoveredPoint
                         ? `${hoveredPoint.year}: ${hoveredPoint.value}${activePanel.suffix}`
                         : 'SCRUB TO INSPECT'}
@@ -627,9 +933,18 @@ export function ShiftingHarmony() {
 
                   <svg
                     viewBox="0 0 420 130"
-                    className="h-28 w-full cursor-crosshair overflow-visible"
-                    onMouseMove={handleChartMouseMove}
-                    onMouseLeave={handleChartMouseLeave}
+                    style={{ touchAction: 'none' }}
+                    className="h-20 w-full cursor-crosshair overflow-visible sm:h-24 md:h-28"
+                    onMouseMove={(e) => handleScrubMove(e.clientX, e.currentTarget)}
+                    onMouseLeave={handleScrubEnd}
+                    onTouchStart={(e) => {
+                      if (e.touches[0]) handleScrubMove(e.touches[0].clientX, e.currentTarget);
+                    }}
+                    onTouchMove={(e) => {
+                      if (e.touches[0]) handleScrubMove(e.touches[0].clientX, e.currentTarget);
+                    }}
+                    onTouchEnd={handleScrubEnd}
+                    onTouchCancel={handleScrubEnd}
                   >
                     <defs>
                       <linearGradient
@@ -639,12 +954,8 @@ export function ShiftingHarmony() {
                         x2="0"
                         y2="1"
                       >
-                        <stop offset="0%" stopColor={activePanel.color.accent} stopOpacity="0.3" />
-                        <stop
-                          offset="100%"
-                          stopColor={activePanel.color.accent}
-                          stopOpacity="0.0"
-                        />
+                        <stop offset="0%" stopColor={activePanel.color.accent} stopOpacity="0.35" />
+                        <stop offset="100%" stopColor={activePanel.color.accent} stopOpacity="0.0" />
                       </linearGradient>
                     </defs>
 
@@ -672,7 +983,7 @@ export function ShiftingHarmony() {
                         y2="115"
                         stroke="rgba(255,255,255,0.4)"
                         strokeDasharray="3 3"
-                        strokeWidth="1"
+                        strokeWidth="1.25"
                       />
                     )}
 
@@ -687,7 +998,7 @@ export function ShiftingHarmony() {
                           <circle
                             cx={pt.x}
                             cy={pt.y}
-                            r={isHovered ? 5 : 4}
+                            r={isHovered ? 5.5 : 4}
                             fill="#ffffff"
                             stroke={activePanel.color.accent}
                             strokeWidth="2"
@@ -695,7 +1006,7 @@ export function ShiftingHarmony() {
                           <circle
                             cx={pt.x}
                             cy={pt.y}
-                            r={isHovered ? 9 : 7}
+                            r={isHovered ? 10 : 7}
                             fill="none"
                             stroke={activePanel.color.accent}
                             strokeWidth="1"
@@ -708,48 +1019,57 @@ export function ShiftingHarmony() {
                 </div>
 
                 {/* 2. Audio-Waveform Visualizer for Earth Song Telemetry */}
-                <div className="relative rounded-2xl border border-white/[0.08] bg-black/50 p-3.5 backdrop-blur-md">
-                  <div className="flex items-center justify-between pb-1 font-mono text-[10px] text-slate-400">
+                <div className="relative rounded-2xl border border-white/[0.08] bg-black/50 p-2.5 backdrop-blur-md sm:p-3">
+                  <div className="flex items-center justify-between pb-1 font-mono text-[9px] text-slate-400 sm:text-[10px]">
                     <span>TELEMETRY SONIC WAVEFORM</span>
-                    <span className="text-sky-300">VIBRATION HARMONIC</span>
+                    <span className="text-sky-300">
+                      {isAuditioning ? 'LIVE RESONANCE HARMONIC' : 'MATHEMATICAL CADENCE'}
+                    </span>
                   </div>
-                  <div className="h-12 w-full">
+                  <div className="h-9 w-full sm:h-11">
                     <canvas ref={canvasRef} className="h-full w-full" />
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Stepper Indicator at Bottom of Card */}
-            <div className="mt-6 flex items-center justify-between border-t border-white/[0.08] pt-3.5">
-              <span className="font-mono text-[10px] text-slate-400">
+            {/* Accessible Stepper at Bottom of Card */}
+            <div className="mt-4 flex items-center justify-between border-t border-white/[0.08] pt-3 sm:mt-6 sm:pt-3.5">
+              <span className="font-mono text-[9px] text-slate-400 sm:text-[10px]">
                 SCROLL TO ADVANCE TELEMETRY STAGE
               </span>
-              <div className="flex items-center gap-2">
+              <div
+                role="tablist"
+                aria-label="Planetary telemetry stages"
+                className="flex items-center gap-1 sm:gap-2"
+              >
                 {panels.map((p, idx) => (
-                  <div
+                  <button
                     key={p.id}
-                    className="h-1.5 rounded-full transition-all duration-300"
-                    style={{
-                      width: idx === activePanelIndex ? '28px' : '8px',
-                      backgroundColor:
-                        idx === activePanelIndex
-                          ? activePanel.color.accent
-                          : 'rgba(255,255,255,0.2)',
-                    }}
-                  />
+                    role="tab"
+                    type="button"
+                    aria-selected={idx === activePanelIndex}
+                    aria-label={`Stage ${idx + 1} of ${panels.length}: ${p.topic}`}
+                    onClick={() => scrollToStage(idx)}
+                    className="group relative flex h-10 min-w-[36px] sm:min-w-[44px] items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 cursor-pointer"
+                  >
+                    <div
+                      className="h-1.5 rounded-full transition-all duration-300"
+                      style={{
+                        width: idx === activePanelIndex ? '28px' : '8px',
+                        backgroundColor:
+                          idx === activePanelIndex
+                            ? activePanel.color.accent
+                            : 'rgba(255,255,255,0.2)',
+                      }}
+                    />
+                  </button>
                 ))}
               </div>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Soft Bottom Exit Fade into Sonic Section */}
-      <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-[10vh] bg-gradient-to-t from-black to-transparent"
-        aria-hidden="true"
-      />
 
       <style
         dangerouslySetInnerHTML={{

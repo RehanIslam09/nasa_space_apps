@@ -1,7 +1,6 @@
 import { CinematicHero } from '@/components/cinematic/cinematic-hero';
 import { StorySection } from '@/components/cinematic/story-section';
 import { JukeboxExperience } from '@/components/cinematic/jukebox-experience';
-import { FloatingAudioBadge } from '@/components/cinematic/audio-controller';
 import { ScrollProgress } from '@/components/cinematic/scroll-progress';
 
 export const metadata = {
@@ -24,9 +23,6 @@ export default function HomePage() {
 
       {/* 4. Interactive Earth Jukebox & Sonification Console */}
       <JukeboxExperience />
-
-      {/* 5. Global Floating Sound Status Controller */}
-      <FloatingAudioBadge />
     </div>
   );
 }

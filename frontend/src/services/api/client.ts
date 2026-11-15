@@ -33,7 +33,7 @@ export class ApiClient {
    * Internal fetch executor with timeout and standardized error handling.
    */
   public async request<T>(path: string, options: RequestOptions = {}): Promise<ApiResponse<T>> {
-    const { timeoutMs = 8000, params, ...fetchOptions } = options;
+    const { timeoutMs = 2500, params, ...fetchOptions } = options;
 
     let baseUrl = this.baseUrl;
     if (!baseUrl && path.startsWith('/') && typeof window === 'undefined') {
