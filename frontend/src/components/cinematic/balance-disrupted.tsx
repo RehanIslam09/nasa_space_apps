@@ -339,7 +339,7 @@ export function BalanceDisrupted() {
           {/* Authentic Volcano / Planetary Disruption Footage */}
           <video
             ref={videoRef}
-            src="/videos/Recording%202026-11-14%20165733.mp4"
+            src="/videos/recording-volcano.mp4"
             loop
             muted
             playsInline

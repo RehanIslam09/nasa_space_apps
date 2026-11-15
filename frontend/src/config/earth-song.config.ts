@@ -57,8 +57,8 @@ export interface SonicTrackConfig {
 export const earthSongConfig = {
   media: {
     heroVideo: '/videos/earth-narrative.mp4',
-    spaceTexture: '/videos/Recording%202026-11-14%20165733.mp4',
-    storyVideo: '/videos/Recording%202026-11-14%20165733.mp4',
+    spaceTexture: '/videos/recording-volcano.mp4',
+    storyVideo: '/videos/recording-volcano.mp4',
     cryosphereVideo: '/videos/polar_video.mp4',
     atmosphereVideo: '/videos/hurricane_video.mp4',
     oceanVideo: '/videos/deep_ocean_video.mp4',
